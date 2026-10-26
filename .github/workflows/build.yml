@@ -22,14 +22,14 @@ jobs:
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
 
-    - name: Sync AOSP/Lineage Source & 4.19 Trees
+    - name: Sync A14 Source & Device Tree 4.19
       run: |
         mkdir android-build
         cd android-build
         ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
         
-        # Tree Device & Vendor kompatibel Kernel 4.19
-        git clone https://github.com/LineageOS/android_device_xiaomi_vince.git -b lineage-20.0 device/xiaomi/vince
+        # Clone Device Tree & Vendor yang valid support Kernel 4.19
+        git clone https://github.com/LineageOS-Revived/android_device_xiaomi_vince.git -b fourteen device/xiaomi/vince
         git clone https://github.com/TheMuppets/proprietary_vendor_xiaomi_vince.git -b lineage-20.0 vendor/xiaomi/vince
         git clone https://github.com/aspur94qia/vince_unitrix.git -b 4.19 kernel/xiaomi/vince
         
