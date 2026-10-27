@@ -1,4 +1,4 @@
-name: OpenWrt Vince Stable 24.10
+name: Super Fast Image Builder
 
 on:
   push:
@@ -8,46 +8,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ubuntu:22.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Prepare Container & Dependencies
+      - name: Setup Environment
         run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y sudo git build-essential libncurses5-dev zlib1g-dev gawk gettext libssl-dev xsltproc rsync unzip python3 mkbootimg wget
-          
-          useradd -m builder
-          chown -R builder:builder .
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 mkbootimg
 
-      - name: Download & Extract Image Builder 24.10
+      - name: Download & Extract Image Builder
         run: |
-          sudo -u builder bash -c '
-            wget https://downloads.openwrt.org/releases/24.10.0/targets/armvirt/64/openwrt-imagebuilder-24.10.0-armvirt-64.Linux-x86_64.tar.xz
-            tar -xf openwrt-imagebuilder-*.tar.xz
-            mv openwrt-imagebuilder-*/ imagebuilder/
-          '
+          wget https://downloads.openwrt.org/releases/23.05.3/targets/armvirt/64/openwrt-imagebuilder-23.05.3-armvirt-64.Linux-x86_64.tar.xz
+          tar -xf openwrt-imagebuilder-*.tar.xz
+          mv openwrt-imagebuilder-*/ imagebuilder/
 
-      - name: Build Custom Image
+      - name: Build Image
         run: |
-          sudo -u builder bash -c '
-            cd imagebuilder
-            make image PROFILE="Default" PACKAGES="luci zram-swap block-mount e2fsprogs kmod-fs-ext4"
-          '
+          cd imagebuilder
+          make image PROFILE="Default" PACKAGES="zram-swap docker dockerd luci-app-dockerman kmod-sound-core ksmbd-server aria2 travelmate luci-app-ttyd tailscale netdata mwan3 block-mount e2fsprogs kmod-fs-ext4"
 
-      - name: Pack to boot.img
+      - name: Pack to Android boot.img
         run: |
           mkdir -p output
           
           FIND_KERNEL=$(find imagebuilder/bin/targets/ -type f \( -name "*Image*" -o -name "*zImage*" \) | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/ -type f \( -name "*.cpio.gz" -o -name "*initramfs*" -o -name "*rootfs*" \) | head -n 1)
           
-          if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
-            echo "ERROR: Kernel or Ramdisk not found!"
-            exit 1
-          fi
-
           mkbootimg \
             --kernel "$FIND_KERNEL" \
             --ramdisk "$FIND_INITRD" \
