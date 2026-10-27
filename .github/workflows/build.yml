@@ -27,19 +27,19 @@ jobs:
         mkdir android-build
         cd android-build
         ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
-        
-        git clone https://github.com/LineageOS-Revived/android_device_xiaomi_vince.git -b fourteen device/xiaomi/vince
-        git clone https://github.com/TheMuppets/proprietary_vendor_xiaomi_vince.git -b lineage-20.0 vendor/xiaomi/vince
-        git clone https://github.com/aspur94qia/vince_unitrix.git -b 4.19 kernel/xiaomi/vince
-        
         ~/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+        
+        # Clone tree setelah repo sync utama selesai agar tidak bentrok
+        git clone https://github.com/LineageOS-Revived/android_device_xiaomi_vince.git -b lineage-20.0 device/xiaomi/vince --depth=1 || git clone https://github.com/LineageOS/android_device_xiaomi_vince.git -b lineage-20.0 device/xiaomi/vince --depth=1
+        git clone https://github.com/TheMuppets/proprietary_vendor_xiaomi_vince.git -b lineage-20.0 vendor/xiaomi/vince --depth=1
+        git clone https://github.com/aspur94qia/vince_unitrix.git -b 4.19 kernel/xiaomi/vince --depth=1
 
     - name: Inject Custom Configurations & WebUI Scripts
       run: |
         cd android-build
         mkdir -p device/xiaomi/vince/rootdir/bin/
-        cp ../scripts/autostart.sh device/xiaomi/vince/rootdir/bin/
-        cp ../scripts/webadmin.py device/xiaomi/vince/rootdir/bin/
+        if [ -f "../scripts/autostart.sh" ]; then cp ../scripts/autostart.sh device/xiaomi/vince/rootdir/bin/; fi
+        if [ -f "../scripts/webadmin.py" ]; then cp ../scripts/webadmin.py device/xiaomi/vince/rootdir/bin/; fi
 
     - name: Compile Headless System & Boot Image
       run: |
