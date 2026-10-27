@@ -26,7 +26,10 @@ jobs:
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Gunakan skrip config OpenWrt agar target armvirt/64 benar-benar terkunci
+          # Berikan izin execute pada skrip config
+          chmod +x ./scripts/config
+          
+          # Konfigurasi target armvirt/64
           ./scripts/config --set-val CONFIG_TARGET_armvirt y
           ./scripts/config --set-val CONFIG_TARGET_armvirt_64 y
           ./scripts/config --set-val CONFIG_TARGET_BOARD "armvirt"
@@ -60,7 +63,6 @@ jobs:
         run: |
           mkdir -p output
           
-          # Cari file kernel dan initrd di folder armvirt
           FIND_KERNEL=$(find openwrt/bin/targets/armvirt/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
           FIND_INITRD=$(find openwrt/bin/targets/armvirt/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
