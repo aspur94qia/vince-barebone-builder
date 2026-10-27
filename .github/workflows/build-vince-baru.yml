@@ -28,7 +28,7 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Inject Qualcomm Firmware, Auto SIM Config & Start Scripts
+      - name: Inject Qualcomm Firmware, Auto Bluetooth Speaker & SIM Config
         run: |
           cd openwrt
           
@@ -37,7 +37,17 @@ jobs:
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           
-          # Skrip First Boot (Auto-config SIM Card & Multi-WAN)
+          # 1. Konfigurasi Nama & Profile Bluetooth Speaker
+          mkdir -p files/etc/bluetooth
+          cat << 'BTCONF' > files/etc/bluetooth/main.conf
+          [General]
+          Name = OpenWrt Vince Speaker
+          Class = 0x240404
+          DiscoverableTimeout = 0
+          PairableTimeout = 0
+          BTCONF
+
+          # 2. Skrip First Boot Auto-Connect SIM & Bluetooth Receiver Mode
           mkdir -p files/etc/uci-defaults
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
@@ -51,13 +61,22 @@ jobs:
           uci set network.wan.autoconnect='1'
           uci commit network
           
-          # Start Bluetooth & Modem Services
+          # Start Bluetooth Qualcomm & Set Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
+          
+          # Jalankan Service Receiver & Agent Auto-Accept Pairing
+          bluealsad -p a2dp-sink &
+          sleep 2
+          bluetoothctl power on
+          bluetoothctl pairable on
+          bluetoothctl discoverable on
+          bluetoothctl agent NoInputNoOutput
+          bluetoothctl default-agent
+          
           /etc/init.d/modemmanager enable
           /etc/init.d/modemmanager start
-          bluealsad -p a2dp-sink &
           
           exit 0
           SCRIPT
