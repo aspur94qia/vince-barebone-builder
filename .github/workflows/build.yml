@@ -2,6 +2,10 @@ name: Build Vince Headless Barebone
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
 
 jobs:
   build:
@@ -27,10 +31,8 @@ jobs:
         mkdir android-build
         cd android-build
         
-        # Init manifest resmi Lineage 20.0 (Android 13 - Paling Stabil di Vince)
         ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
         
-        # Bikin local_manifests biar repo sync yang ngurusin cloning tree
         mkdir -p .repo/local_manifests
         cat << 'XML' > .repo/local_manifests/vince.xml
 <?xml version="1.0" encoding="UTF-8"?>
