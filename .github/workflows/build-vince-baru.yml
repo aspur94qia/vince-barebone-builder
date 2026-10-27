@@ -45,9 +45,11 @@ jobs:
           cd openwrt
           make download -j$(nproc)
 
-      - name: Compile OpenWrt
+      - name: Compile OpenWrt (with Clean & Single-Core Fallback)
         run: |
           cd openwrt
+          make tools/tar/clean || true
+          make -j1 V=s tools/tar/compile || make -j1 V=s tools/tar/compile
           make -j$(nproc) || make -j1 V=s
 
       - name: Pack to Android boot.img
