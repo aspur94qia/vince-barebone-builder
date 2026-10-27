@@ -16,7 +16,7 @@ jobs:
       - name: Prepare Container & Dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y sudo git build-essential libncurses5-dev zlib1g-dev gawk gettext libssl-dev xsltproc rsync unzip python3 mkbootimg wget curl
+          DEBIAN_FRONTEND=noninteractive apt-get install -y sudo git build-essential libncurses5-dev zlib1g-dev gawk gettext libssl-dev xsltproc rsync unzip python3 mkbootimg wget
           
           useradd -m builder
           chown -R builder:builder .
@@ -24,14 +24,7 @@ jobs:
       - name: Download & Extract Image Builder
         run: |
           sudo -u builder bash -c '
-            # Ambil link file Image Builder armvirt-64 terbaru secara otomatis dari server resmi
-            LATEST_URL=$(curl -s https://downloads.openwrt.org/releases/ | grep -oE "href=\"v[0-9.]+\/\"" | tail -n 1 | tr -d "href=\"/")
-            echo "Using OpenWrt version: $LATEST_URL"
-            
-            BUILDER_LINK="https://downloads.openwrt.org/releases/${LATEST_URL}/targets/armvirt/64/openwrt-imagebuilder-${LATEST_URL}-armvirt-64.Linux-x86_64.tar.xz"
-            
-            wget "$BUILDER_LINK" || wget "$(curl -s https://downloads.openwrt.org/releases/ | grep -oE "href=\"23\.[0-9.]+\/\"" | tail -n 1 | tr -d "href=\"/" | awk '{print "https://downloads.openwrt.org/releases/" $1 "/targets/armvirt/64/openwrt-imagebuilder-" $1 "-armvirt-64.Linux-x86_64.tar.xz"}')"
-            
+            wget https://downloads.openwrt.org/releases/23.05.5/targets/armvirt/64/openwrt-imagebuilder-23.05.5-armvirt-64.Linux-x86_64.tar.xz
             tar -xf openwrt-imagebuilder-*.tar.xz
             mv openwrt-imagebuilder-*/ imagebuilder/
           '
