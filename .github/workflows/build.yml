@@ -22,30 +22,40 @@ jobs:
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
 
-    - name: Sync Source Code & Device Tree
+    - name: Sync Source Code via Local Manifest
       run: |
         mkdir android-build
         cd android-build
-        ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
-        ~/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         
-        # Clone tree setelah repo sync utama selesai agar tidak bentrok
-        git clone https://github.com/LineageOS-Revived/android_device_xiaomi_vince.git -b lineage-20.0 device/xiaomi/vince --depth=1 || git clone https://github.com/LineageOS/android_device_xiaomi_vince.git -b lineage-20.0 device/xiaomi/vince --depth=1
-        git clone https://github.com/TheMuppets/proprietary_vendor_xiaomi_vince.git -b lineage-20.0 vendor/xiaomi/vince --depth=1
-        git clone https://github.com/aspur94qia/vince_unitrix.git -b 4.19 kernel/xiaomi/vince --depth=1
+        # Init manifest resmi Lineage 20.0 (Android 13 - Paling Stabil di Vince)
+        ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
+        
+        # Bikin local_manifests biar repo sync yang ngurusin cloning tree
+        mkdir -p .repo/local_manifests
+        cat << 'XML' > .repo/local_manifests/vince.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remove-project name="LineageOS/android_device_xiaomi_vince" />
+  <project path="device/xiaomi/vince" name="LineageOS-Revived/android_device_xiaomi_vince" revision="fourteen" remote="github" />
+  <project path="vendor/xiaomi/vince" name="TheMuppets/proprietary_vendor_xiaomi_vince" revision="lineage-20.0" remote="github" />
+  <project path="kernel/xiaomi/vince" name="aspur94qia/vince_unitrix" revision="4.19" remote="github" />
+</manifest>
+XML
+
+        ~/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
     - name: Inject Custom Configurations & WebUI Scripts
       run: |
         cd android-build
         mkdir -p device/xiaomi/vince/rootdir/bin/
-        if [ -f "../scripts/autostart.sh" ]; then cp ../scripts/autostart.sh device/xiaomi/vince/rootdir/bin/; fi
-        if [ -f "../scripts/webadmin.py" ]; then cp ../scripts/webadmin.py device/xiaomi/vince/rootdir/bin/; fi
+        cp ../scripts/autostart.sh device/xiaomi/vince/rootdir/bin/ 2>/dev/null || true
+        cp ../scripts/webadmin.py device/xiaomi/vince/rootdir/bin/ 2>/dev/null || true
 
     - name: Compile Headless System & Boot Image
       run: |
         cd android-build
         source build/envsetup.sh
-        lunch lineage_vince-userdebug
+        lunch lineage_vince-userdebug || lunch lineage_vince-ap1a-userdebug
         make bootimage systemimage -j$(nproc --all)
 
     - name: Upload Output Artifacts
