@@ -28,21 +28,18 @@ jobs:
 
     - name: Sync Source Code via Local Manifest
       run: |
-        mkdir android-build
+        mkdir -p android-build
         cd android-build
-        
         ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
-        
         mkdir -p .repo/local_manifests
-        cat << 'XML' > .repo/local_manifests/vince.xml
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <remove-project name="LineageOS/android_device_xiaomi_vince" />
-  <project path="device/xiaomi/vince" name="LineageOS-Revived/android_device_xiaomi_vince" revision="fourteen" remote="github" />
-  <project path="vendor/xiaomi/vince" name="TheMuppets/proprietary_vendor_xiaomi_vince" revision="lineage-20.0" remote="github" />
-  <project path="kernel/xiaomi/vince" name="aspur94qia/vince_unitrix" revision="4.19" remote="github" />
-</manifest>
-XML
+        
+        echo '<?xml version="1.0" encoding="UTF-8"?>' > .repo/local_manifests/vince.xml
+        echo '<manifest>' >> .repo/local_manifests/vince.xml
+        echo '  <remove-project name="LineageOS/android_device_xiaomi_vince" />' >> .repo/local_manifests/vince.xml
+        echo '  <project path="device/xiaomi/vince" name="LineageOS-Revived/android_device_xiaomi_vince" revision="fourteen" remote="github" />' >> .repo/local_manifests/vince.xml
+        echo '  <project path="vendor/xiaomi/vince" name="TheMuppets/proprietary_vendor_xiaomi_vince" revision="lineage-20.0" remote="github" />' >> .repo/local_manifests/vince.xml
+        echo '  <project path="kernel/xiaomi/vince" name="aspur94qia/vince_unitrix" revision="4.19" remote="github" />' >> .repo/local_manifests/vince.xml
+        echo '</manifest>' >> .repo/local_manifests/vince.xml
 
         ~/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
