@@ -30,13 +30,15 @@ jobs:
       run: |
         mkdir -p android-build
         cd android-build
-        ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
+        
+        # Base OS diselaraskan ke LineageOS 21.0 (Android 14)
+        ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-21.0 --git-lfs --depth=1
         mkdir -p .repo/local_manifests
         
         echo '<?xml version="1.0" encoding="UTF-8"?>' > .repo/local_manifests/vince.xml
         echo '<manifest>' >> .repo/local_manifests/vince.xml
         echo '  <project path="device/xiaomi/vince" name="LineageOS-Revived/android_device_xiaomi_vince" revision="fourteen" remote="github" />' >> .repo/local_manifests/vince.xml
-        echo '  <project path="vendor/xiaomi/vince" name="TheMuppets/proprietary_vendor_xiaomi_vince" revision="lineage-20.0" remote="github" />' >> .repo/local_manifests/vince.xml
+        echo '  <project path="vendor/xiaomi/vince" name="TheMuppets/proprietary_vendor_xiaomi_vince" revision="lineage-21.0" remote="github" />' >> .repo/local_manifests/vince.xml
         echo '  <project path="kernel/xiaomi/vince" name="aspur94qia/vince_unitrix" revision="4.19" remote="github" />' >> .repo/local_manifests/vince.xml
         echo '</manifest>' >> .repo/local_manifests/vince.xml
 
@@ -53,7 +55,7 @@ jobs:
       run: |
         cd android-build
         source build/envsetup.sh
-        lunch lineage_vince-userdebug || lunch lineage_vince-ap1a-userdebug
+        lunch lineage_vince-ap1a-userdebug || lunch lineage_vince-userdebug
         make bootimage systemimage -j$(nproc --all)
 
     - name: Upload Output Artifacts
