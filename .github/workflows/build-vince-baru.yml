@@ -21,12 +21,39 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt Source & Configure Armvirt
+      - name: Clone OpenWrt & Update Feeds
         run: |
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Inject Qualcomm Bluetooth Firmware & Auto-start Scripts
+        run: |
+          cd openwrt
           
-          # 1. Target Hardware & Arsitektur
+          # Download firmware Bluetooth Qualcomm resmi ke dalam rootfs
+          mkdir -p files/lib/firmware/qcom
+          wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
+          wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
+          
+          # Skrip otomatisasi first-boot
+          mkdir -p files/etc/uci-defaults
+          cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
+          #!/bin/sh
+          hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
+          /etc/init.d/bluetooth enable
+          /etc/init.d/bluetooth start
+          bluealsad -p a2dp-sink &
+          exit 0
+          SCRIPT
+          chmod +x files/etc/uci-defaults/99-vince-init
+
+      - name: Configure Armvirt Target & Packages
+        run: |
+          cd openwrt
+          
+          # 1. Target Hardware & Arsitektur Armvirt 64-bit
           echo "CONFIG_TARGET_armvirt=y" > .config
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
@@ -96,38 +123,6 @@ jobs:
           echo "CONFIG_PACKAGE_wget-ssl=y" >> .config
           echo "CONFIG_PACKAGE_bash=y" >> .config
           
-          make defconfig
-
-      - name: Inject Qualcomm Bluetooth Firmware & Auto-start Scripts
-        run: |
-          cd openwrt
-          
-          # Download firmware Bluetooth Qualcomm resmi ke dalam rootfs
-          mkdir -p files/lib/firmware/qcom
-          wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
-          wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
-          
-          # Buat skrip otostart otomatis pas first boot
-          mkdir -p files/etc/uci-defaults
-          cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
-          #!/bin/sh
-          # Aktifkan Bluetooth UART serial Qualcomm bawaan
-          hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
-          
-          # Jalankan service Bluetooth & A2DP Sink
-          /etc/init.d/bluetooth enable
-          /etc/init.d/bluetooth start
-          bluealsad -p a2dp-sink &
-          
-          exit 0
-          SCRIPT
-          chmod +x files/etc/uci-defaults/99-vince-init
-
-      - name: Update and Install Feeds
-        run: |
-          cd openwrt
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
           make defconfig
 
       - name: Download Packages
