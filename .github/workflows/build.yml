@@ -60,7 +60,6 @@ jobs:
       run: |
         mkdir -p output
         
-        # Pencarian Kernel presisi (menghindari folder/file non-kernel)
         FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "*zImage*" -o -name "*Image.gz-dtb*" -o -name "Image.gz" \) | head -n 1)
         FIND_INITRD=$(find openwrt/bin/targets/ -type f -name "*rootfs.cpio.gz*" | head -n 1)
         
@@ -75,8 +74,10 @@ jobs:
         mkbootimg \
           --kernel "$FIND_KERNEL" \
           --ramdisk "$FIND_INITRD" \
-          --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31" \
+          --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3" \
           --base 0x80000000 \
+          --ramdisk_offset 0x01000000 \
+          --tags_offset 0x00000100 \
           --pagesize 2048 \
           --output output/openwrt-vince-boot.img
 
