@@ -26,13 +26,13 @@ jobs:
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Paksa konfigurasi target armvirt secara eksplisit
-          echo "CONFIG_TARGET_armvirt=y" >> .config
-          echo "CONFIG_TARGET_armvirt_64=y" >> .config
-          echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
-          echo "CONFIG_TARGET_SUBTARGET=\"64\"" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
+          # Gunakan skrip config OpenWrt agar target armvirt/64 benar-benar terkunci
+          ./scripts/config --set-val CONFIG_TARGET_armvirt y
+          ./scripts/config --set-val CONFIG_TARGET_armvirt_64 y
+          ./scripts/config --set-val CONFIG_TARGET_BOARD "armvirt"
+          ./scripts/config --set-val CONFIG_TARGET_SUBTARGET "64"
+          ./scripts/config --set-val CONFIG_PACKAGE_kmod-usb-net y
+          ./scripts/config --set-val CONFIG_PACKAGE_kmod-usb-net-rndis y
           
           make defconfig
 
@@ -60,9 +60,9 @@ jobs:
         run: |
           mkdir -p output
           
-          # Cari file kernel dan initrd dengan aman berdasarkan target armvirt
-          FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
-          FIND_INITRD=$(find openwrt/bin/targets/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
+          # Cari file kernel dan initrd di folder armvirt
+          FIND_KERNEL=$(find openwrt/bin/targets/armvirt/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find openwrt/bin/targets/armvirt/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
