@@ -1,4 +1,4 @@
-name: Super Fast Image Builder
+name: Final Fast Build (Image Builder)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
           tar -xf openwrt-imagebuilder-*.tar.xz
           mv openwrt-imagebuilder-*/ imagebuilder/
 
-      - name: Build Image
+      - name: Build Image (Fast Injection)
         run: |
           cd imagebuilder
           make image PROFILE="Default" PACKAGES="zram-swap docker dockerd luci-app-dockerman kmod-sound-core ksmbd-server aria2 travelmate luci-app-ttyd tailscale netdata mwan3 block-mount e2fsprogs kmod-fs-ext4"
