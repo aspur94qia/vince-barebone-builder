@@ -23,49 +23,27 @@ jobs:
           gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget \
           android-sdk-libsparse-utils mkbootimg
 
-    - name: Clone OpenWrt MSM8953 Source
+    - name: Clone OpenWrt Source
       run: |
-        git clone --depth 1 https://github.com/openwrt/openwrt.git openwrt
+        git clone --depth 1 https://github.com/msm8953-mainline/openwrt.git openwrt
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Configure OpenWrt Driver & Packages (Vince Verified)
+    - name: Configure OpenWrt Packages
       run: |
         cd openwrt
-        
-        cat << 'CONFIG' > .config
-        CONFIG_TARGET_qualcommax=y
-        
-        # Web Admin Interface
+        cat << 'CONFIG_EOF' > .config
+        CONFIG_TARGET_msm8953=y
+        CONFIG_TARGET_msm8953_DEVICE_xiaomi_vince=y
         CONFIG_PACKAGE_luci=y
         CONFIG_PACKAGE_luci-ssl=y
-        CONFIG_PACKAGE_luci-app-firewall=y
-        CONFIG_PACKAGE_luci-app-ttyd=y
-        
-        # Driver Modem 4G (Internal Qualcomm RIL & QMI)
-        CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
-        CONFIG_PACKAGE_kmod-usb-serial-option=y
-        CONFIG_PACKAGE_kmod-usb-net-rndis=y
-        CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
-        CONFIG_PACKAGE_uqmi=y
-        CONFIG_PACKAGE_qmi-utils=y
-        CONFIG_PACKAGE_modemmanager=y
-        CONFIG_PACKAGE_luci-proto-modemmanager=y
-        CONFIG_PACKAGE_luci-proto-qmi=y
-        
-        # Driver Wi-Fi Vince (Qualcomm WCN36xx)
         CONFIG_PACKAGE_kmod-wcn36xx=y
         CONFIG_PACKAGE_wcn36xx-firmware=y
-        CONFIG_PACKAGE_wpad-basic-mbedtls=y
-        CONFIG_PACKAGE_wireless-regdb=y
-        
-        # Tool Network & Extender
-        CONFIG_PACKAGE_luci-app-sqm=y
-        CONFIG_PACKAGE_wireguard-tools=y
-        CONFIG_PACKAGE_luci-proto-wireguard=y
-        CONFIG
-        
+        CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+        CONFIG_PACKAGE_modemmanager=y
+        CONFIG_PACKAGE_luci-proto-modemmanager=y
+        CONFIG_EOF
         make defconfig
 
     - name: Download Package Sources
@@ -73,27 +51,37 @@ jobs:
         cd openwrt
         make download -j$(nproc)
 
-    - name: Compile OpenWrt Kernel & Rootfs
+    - name: Compile OpenWrt
       run: |
         cd openwrt
         make -j$(nproc) || make -j1 V=s
 
-    - name: Pack to Android boot.img Format
+    - name: Pack to Android boot.img
       run: |
         mkdir -p output
-        FIND_KERNEL=$(find openwrt/bin/targets/ -name "*zImage*" -o -name "*Image.gz-dtb*" | head -n 1)
-        FIND_INITRD=$(find openwrt/bin/targets/ -name "*rootfs.cpio.gz*" | head -n 1)
+        
+        # Pencarian Kernel presisi (menghindari folder/file non-kernel)
+        FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "*zImage*" -o -name "*Image.gz-dtb*" -o -name "Image.gz" \) | head -n 1)
+        FIND_INITRD=$(find openwrt/bin/targets/ -type f -name "*rootfs.cpio.gz*" | head -n 1)
+        
+        echo "Found Kernel: $FIND_KERNEL"
+        echo "Found Initrd: $FIND_INITRD"
+
+        if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
+          echo "ERROR: Kernel or Ramdisk not found!"
+          exit 1
+        fi
         
         mkbootimg \
           --kernel "$FIND_KERNEL" \
           --ramdisk "$FIND_INITRD" \
-          --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 service_locator.enable=1" \
+          --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31" \
           --base 0x80000000 \
           --pagesize 2048 \
           --output output/openwrt-vince-boot.img
 
-    - name: Upload OpenWrt Flashable Artifacts
+    - name: Upload Flashable Boot Image
       uses: actions/upload-artifact@v4
       with:
-        name: OpenWrt-Vince-Flashable
+        name: OpenWrt-Vince-BootImage
         path: output/openwrt-vince-boot.img
