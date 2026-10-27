@@ -28,7 +28,6 @@ jobs:
         cd android-build
         ~/bin/repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1
         
-        # Clone Device Tree fourteen (A14) & Vendor lineage-20.0 + Kernel 4.19 Unitrix
         git clone https://github.com/LineageOS-Revived/android_device_xiaomi_vince.git -b fourteen device/xiaomi/vince
         git clone https://github.com/TheMuppets/proprietary_vendor_xiaomi_vince.git -b lineage-20.0 vendor/xiaomi/vince
         git clone https://github.com/aspur94qia/vince_unitrix.git -b 4.19 kernel/xiaomi/vince
