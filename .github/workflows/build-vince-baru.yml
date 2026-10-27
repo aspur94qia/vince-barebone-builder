@@ -1,4 +1,4 @@
-name: Final Container OpenWrt Build
+name: OpenWrt Vince Stable 24.10
 
 on:
   push:
@@ -21,10 +21,10 @@ jobs:
           useradd -m builder
           chown -R builder:builder .
 
-      - name: Download & Extract Image Builder
+      - name: Download & Extract Image Builder 24.10
         run: |
           sudo -u builder bash -c '
-            wget https://downloads.openwrt.org/releases/23.05.4/targets/armvirt/64/openwrt-imagebuilder-23.05.4-armvirt-64.Linux-x86_64.tar.xz
+            wget https://downloads.openwrt.org/releases/24.10.0/targets/armvirt/64/openwrt-imagebuilder-24.10.0-armvirt-64.Linux-x86_64.tar.xz
             tar -xf openwrt-imagebuilder-*.tar.xz
             mv openwrt-imagebuilder-*/ imagebuilder/
           '
@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo -u builder bash -c '
             cd imagebuilder
-            make image PROFILE="Default" PACKAGES="zram-swap docker dockerd luci-app-dockerman kmod-sound-core ksmbd-server aria2 travelmate luci-app-ttyd tailscale netdata mwan3 block-mount e2fsprogs kmod-fs-ext4"
+            make image PROFILE="Default" PACKAGES="luci zram-swap block-mount e2fsprogs kmod-fs-ext4"
           '
 
       - name: Pack to boot.img
