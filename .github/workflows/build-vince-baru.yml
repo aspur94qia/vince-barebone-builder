@@ -24,7 +24,7 @@ jobs:
       - name: Download & Extract Image Builder
         run: |
           sudo -u builder bash -c '
-            wget https://downloads.openwrt.org/releases/23.05.0/targets/armvirt/64/openwrt-imagebuilder-23.05.0-armvirt-64.Linux-x86_64.tar.xz
+            wget https://downloads.openwrt.org/releases/23.05.4/targets/armvirt/64/openwrt-imagebuilder-23.05.4-armvirt-64.Linux-x86_64.tar.xz
             tar -xf openwrt-imagebuilder-*.tar.xz
             mv openwrt-imagebuilder-*/ imagebuilder/
           '
