@@ -26,8 +26,11 @@ jobs:
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          echo "CONFIG_target_armvirt=y" >> .config
-          echo "CONFIG_target_armvirt_64=y" >> .config
+          # Paksa konfigurasi target armvirt secara eksplisit
+          echo "CONFIG_TARGET_armvirt=y" >> .config
+          echo "CONFIG_TARGET_armvirt_64=y" >> .config
+          echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
+          echo "CONFIG_TARGET_SUBTARGET=\"64\"" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
           
@@ -45,7 +48,7 @@ jobs:
           cd openwrt
           make download -j$(nproc)
 
-      - name: Compile OpenWrt (with Clean & Single-Core Fallback)
+      - name: Compile OpenWrt
         run: |
           cd openwrt
           export FORCE_UNSAFE_CONFIGURE=1
@@ -57,14 +60,16 @@ jobs:
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "*zImage*" -o -name "*Image*" -o -name "*vmlinux*" \) | head -n 1)
-          FIND_INITRD=$(find openwrt/bin/targets/ -type f \( -name "*.cpio.gz" -o -name "*initramfs*" -o -name "*rootfs*" \) | head -n 1)
+          # Cari file kernel dan initrd dengan aman berdasarkan target armvirt
+          FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find openwrt/bin/targets/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
+            find openwrt/bin/targets/ -type f
             exit 1
           fi
 
