@@ -25,7 +25,7 @@ jobs:
 
     - name: Clone OpenWrt Source
       run: |
-        git clone --depth 1 https://github.com/msm8953-mainline/openwrt.git openwrt
+        git clone --depth 1 -b master https://github.com/openwrt/openwrt.git openwrt
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
@@ -34,8 +34,7 @@ jobs:
       run: |
         cd openwrt
         cat << 'CONFIG_EOF' > .config
-        CONFIG_TARGET_msm8953=y
-        CONFIG_TARGET_msm8953_DEVICE_xiaomi_vince=y
+        CONFIG_TARGET_qualcommax=y
         CONFIG_PACKAGE_luci=y
         CONFIG_PACKAGE_luci-ssl=y
         CONFIG_PACKAGE_kmod-wcn36xx=y
