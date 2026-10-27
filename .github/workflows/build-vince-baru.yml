@@ -28,38 +28,64 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Inject Qualcomm Bluetooth Firmware & Auto-start Scripts
+      - name: Inject Qualcomm Firmware, Auto SIM Config & Start Scripts
         run: |
           cd openwrt
           
-          # Download firmware Bluetooth Qualcomm resmi ke dalam rootfs
+          # Firmware Bluetooth Qualcomm
           mkdir -p files/lib/firmware/qcom
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           
-          # Skrip otomatisasi first-boot
+          # Skrip First Boot (Auto-config SIM Card & Multi-WAN)
           mkdir -p files/etc/uci-defaults
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
+          
+          # Auto-connect SIM Card
+          uci set network.wan=interface
+          uci set network.wan.proto='modemmanager'
+          uci set network.wan.apn='internet'
+          uci set network.wan.pdptype='ipv4v6'
+          uci set network.wan.metric='10'
+          uci set network.wan.autoconnect='1'
+          uci commit network
+          
+          # Start Bluetooth & Modem Services
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
+          /etc/init.d/modemmanager enable
+          /etc/init.d/modemmanager start
           bluealsad -p a2dp-sink &
+          
           exit 0
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Packages
+      - name: Configure Armvirt Target & All Required Packages
         run: |
           cd openwrt
           
-          # 1. Target Hardware & Arsitektur Armvirt 64-bit
+          # Target Hardware Armvirt 64-bit
           echo "CONFIG_TARGET_armvirt=y" > .config
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
           echo "CONFIG_TARGET_SUBTARGET=\"64\"" >> .config
           
-          # 2. Hardware Suara & Bluetooth Internal Qualcomm
+          # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
+          echo "CONFIG_PACKAGE_modemmanager=y" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-modemmanager=y" >> .config
+          echo "CONFIG_PACKAGE_libqmi=y" >> .config
+          echo "CONFIG_PACKAGE_qmi-utils=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-qmi-wwan=y" >> .config
+          echo "CONFIG_PACKAGE_wwan=y" >> .config
+          echo "CONFIG_PACKAGE_qrtr-tools=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-qrtr=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-qrtr-smd=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-qrtr-tun=y" >> .config
+          
+          # Hardware Suara & Bluetooth Internal
           echo "CONFIG_PACKAGE_kmod-sound-core=y" >> .config
           echo "CONFIG_PACKAGE_kmod-sound-soc-core=y" >> .config
           echo "CONFIG_PACKAGE_alsa-utils=y" >> .config
@@ -70,20 +96,20 @@ jobs:
           echo "CONFIG_PACKAGE_bluez-utils=y" >> .config
           echo "CONFIG_PACKAGE_bluealsa=y" >> .config
           
-          # 3. LuCI, Tema & Web Terminal
+          # LuCI UI & Web Terminal
           echo "CONFIG_PACKAGE_luci=y" >> .config
           echo "CONFIG_PACKAGE_luci-ssl=y" >> .config
           echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
           
-          # 4. Wi-Fi & Repeater (WISP)
+          # Wi-Fi & Repeater (WISP)
           echo "CONFIG_PACKAGE_wpad-mbedtls=y" >> .config
           echo "CONFIG_PACKAGE_travelmate=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-travelmate=y" >> .config
           echo "CONFIG_PACKAGE_relayd=y" >> .config
           echo "CONFIG_PACKAGE_luci-proto-relay=y" >> .config
           
-          # 5. USB Tethering & Modem Support
+          # USB Tethering & Support Modem USB
           echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y" >> .config
@@ -91,7 +117,7 @@ jobs:
           echo "CONFIG_PACKAGE_kmod-usb-serial-option=y" >> .config
           echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
           
-          # 6. Storage, Partisi eMMC & Download Manager
+          # Storage & Partisi eMMC
           echo "CONFIG_PACKAGE_block-mount=y" >> .config
           echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
           echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
@@ -100,14 +126,12 @@ jobs:
           echo "CONFIG_PACKAGE_luci-app-samba4=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-aria2=y" >> .config
           
-          # 7. Pemantau Bandwidth & Kuota
+          # Network Switcher, Bandwidth Monitor & Security
+          echo "CONFIG_PACKAGE_mwan3=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
           echo "CONFIG_PACKAGE_vnstat2=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-vnstat2=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-          
-          # 8. Fitur Jaringan & Keamanan
-          echo "CONFIG_PACKAGE_mwan3=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-adblock=y" >> .config
           echo "CONFIG_PACKAGE_https-dns-proxy=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-https-dns-proxy=y" >> .config
@@ -116,7 +140,7 @@ jobs:
           echo "CONFIG_PACKAGE_tailscale=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-wireguard=y" >> .config
           
-          # 9. Utilitas Terminal Wajib
+          # Utilitas Terminal
           echo "CONFIG_PACKAGE_nano=y" >> .config
           echo "CONFIG_PACKAGE_htop=y" >> .config
           echo "CONFIG_PACKAGE_curl=y" >> .config
@@ -144,9 +168,6 @@ jobs:
           
           FIND_KERNEL=$(find openwrt/bin/targets/armvirt/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
           FIND_INITRD=$(find openwrt/bin/targets/armvirt/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
-          
-          echo "Found Kernel: $FIND_KERNEL"
-          echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
