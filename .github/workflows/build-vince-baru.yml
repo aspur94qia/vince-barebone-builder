@@ -1,0 +1,72 @@
+name: Fresh OpenWrt Vince Build
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common
+          pip3 install pycryptodome
+
+      - name: Clone OpenWrt Source
+        run: |
+          git clone https://git.openwrt.org/openwrt/openwrt.git openwrt
+
+      - name: Update and Install Feeds
+        run: |
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make defconfig
+
+      - name: Download Packages
+        run: |
+          cd openwrt
+          make download -j$(nproc)
+
+      - name: Compile OpenWrt
+        run: |
+          cd openwrt
+          make -j$(nproc) || make -j1 V=s
+
+      - name: Pack to Android boot.img
+        run: |
+          mkdir -p output
+          
+          # Pencarian file dengan sintaks bash yang aman
+          FIND_KERNEL=$(find openwrt/bin/targets/ -type f \( -name "*zImage*" -o -name "*Image*" -o -name "*vmlinux*" \) | head -n 1)
+          FIND_INITRD=$(find openwrt/bin/targets/ -type f \( -name "*.cpio.gz" -o -name "*initramfs*" -o -name "*rootfs*" \) | head -n 1)
+          
+          echo "Found Kernel: $FIND_KERNEL"
+          echo "Found Initrd: $FIND_INITRD"
+          
+          if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
+            echo "ERROR: Kernel or Ramdisk not found!"
+            exit 1
+          fi
+
+          mkbootimg \
+            --kernel "$FIND_KERNEL" \
+            --ramdisk "$FIND_INITRD" \
+            --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3" \
+            --base 0x80000000 \
+            --ramdisk_offset 0x01000000 \
+            --tags_offset 0x00000100 \
+            --pagesize 2048 \
+            --output output/openwrt-vince-boot.img
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-vince-boot
+          path: output/openwrt-vince-boot.img
