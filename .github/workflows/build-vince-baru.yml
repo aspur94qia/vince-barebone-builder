@@ -26,15 +26,102 @@ jobs:
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Tulis langsung konfigurasi target ke dalam file .config
+          # 1. Target Hardware & Arsitektur
           echo "CONFIG_TARGET_armvirt=y" > .config
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
           echo "CONFIG_TARGET_SUBTARGET=\"64\"" >> .config
+          
+          # 2. Hardware Suara & Bluetooth Internal Qualcomm
+          echo "CONFIG_PACKAGE_kmod-sound-core=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-sound-soc-core=y" >> .config
+          echo "CONFIG_PACKAGE_alsa-utils=y" >> .config
+          echo "CONFIG_PACKAGE_alsa-ucm-conf=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-bluetooth=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-bt-hci-uart=y" >> .config
+          echo "CONFIG_PACKAGE_bluez-daemon=y" >> .config
+          echo "CONFIG_PACKAGE_bluez-utils=y" >> .config
+          echo "CONFIG_PACKAGE_bluealsa=y" >> .config
+          
+          # 3. LuCI, Tema & Web Terminal
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          echo "CONFIG_PACKAGE_luci-ssl=y" >> .config
+          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+          
+          # 4. Wi-Fi & Repeater (WISP)
+          echo "CONFIG_PACKAGE_wpad-mbedtls=y" >> .config
+          echo "CONFIG_PACKAGE_travelmate=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-travelmate=y" >> .config
+          echo "CONFIG_PACKAGE_relayd=y" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-relay=y" >> .config
+          
+          # 5. USB Tethering & Modem Support
           echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-serial=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-serial-option=y" >> .config
+          echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
+          
+          # 6. Storage, Partisi eMMC & Download Manager
+          echo "CONFIG_PACKAGE_block-mount=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
+          echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
+          echo "CONFIG_PACKAGE_fdisk=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-samba4=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-aria2=y" >> .config
+          
+          # 7. Pemantau Bandwidth & Kuota
+          echo "CONFIG_PACKAGE_vnstat2=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-vnstat2=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
+          
+          # 8. Fitur Jaringan & Keamanan
+          echo "CONFIG_PACKAGE_mwan3=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-adblock=y" >> .config
+          echo "CONFIG_PACKAGE_https-dns-proxy=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-https-dns-proxy=y" >> .config
+          echo "CONFIG_PACKAGE_sqm=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-sqm=y" >> .config
+          echo "CONFIG_PACKAGE_tailscale=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-wireguard=y" >> .config
+          
+          # 9. Utilitas Terminal Wajib
+          echo "CONFIG_PACKAGE_nano=y" >> .config
+          echo "CONFIG_PACKAGE_htop=y" >> .config
+          echo "CONFIG_PACKAGE_curl=y" >> .config
+          echo "CONFIG_PACKAGE_wget-ssl=y" >> .config
+          echo "CONFIG_PACKAGE_bash=y" >> .config
           
           make defconfig
+
+      - name: Inject Qualcomm Bluetooth Firmware & Auto-start Scripts
+        run: |
+          cd openwrt
+          
+          # Download firmware Bluetooth Qualcomm resmi ke dalam rootfs
+          mkdir -p files/lib/firmware/qcom
+          wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
+          wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
+          
+          # Buat skrip otostart otomatis pas first boot
+          mkdir -p files/etc/uci-defaults
+          cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
+          #!/bin/sh
+          # Aktifkan Bluetooth UART serial Qualcomm bawaan
+          hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
+          
+          # Jalankan service Bluetooth & A2DP Sink
+          /etc/init.d/bluetooth enable
+          /etc/init.d/bluetooth start
+          bluealsad -p a2dp-sink &
+          
+          exit 0
+          SCRIPT
+          chmod +x files/etc/uci-defaults/99-vince-init
 
       - name: Update and Install Feeds
         run: |
