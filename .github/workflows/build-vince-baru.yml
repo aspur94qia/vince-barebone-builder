@@ -99,10 +99,12 @@ jobs:
         run: |
           cd openwrt
           
-          # LANGKAH 1: Set Target Armvirt Murni & Generate Defconfig
-          echo "CONFIG_TARGET_armvirt=y" > .config
-          echo "CONFIG_TARGET_armvirt_64=y" > .config
-          echo "CONFIG_TARGET_armvirt_64_Default=y" > .config
+          # LANGKAH 1: Inisialisasi Target Armvirt dengan Heredoc yang benar
+          cat << 'EOF' > .config
+          CONFIG_TARGET_armvirt=y
+          CONFIG_TARGET_armvirt_64=y
+          CONFIG_TARGET_armvirt_64_Default=y
+          EOF
           make defconfig
 
           # LANGKAH 2: Masukkan Paket Tambahan ke .config secara Append (>> .config)
