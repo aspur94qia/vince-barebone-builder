@@ -1,4 +1,4 @@
-name: Build Vince Headless OpenWrt Ultimate Suite
+name: Build Vince Headless OpenWrt Native Suite
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ultimate-suite:
+  build-native-suite:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -17,39 +17,39 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
 
-      - name: Download LineageOS Vince & Download All Router Binaries
+      - name: Download LineageOS Vince & Native Router Binaries
         run: |
-          mkdir -p work/vince_root/bin work/vince_root/etc/router work/vince_root/web_ui output
+          mkdir -p work/vince_native/bin work/vince_native/etc/router work/vince_native/web_ui output
           echo "Downloading LineageOS Vince ROM..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. DOWNLOAD BINARI ARM64 STATIS LENGKAP (TOOLS UTAMA) ---
-          echo "Downloading ARM64 Static Tools (BusyBox, Dnsmasq, Hostapd)..."
+          # --- 1. DOWNLOAD BINARI ARM64 NATIVE (BUSYBOX, DNSMASQ, HOSTAPD) ---
+          echo "Downloading ARM64 Native Tools..."
           
-          # A. BusyBox (Swiss-army knife dasar sistem)
-          wget -O work/vince_root/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
-          chmod +x work/vince_root/bin/busybox
+          # A. BusyBox (Swiss-army knife sistem dasar)
+          wget -O work/vince_native/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
+          chmod +x work/vince_native/bin/busybox
 
-          # B. Dnsmasq (DHCP & DNS Server Lokal)
-          wget -O work/vince_root/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
-          chmod +x work/vince_root/bin/dnsmasq || true
+          # B. Dnsmasq (DHCP & DNS Lokal)
+          wget -O work/vince_native/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
+          chmod +x work/vince_native/bin/dnsmasq || true
 
-          # C. Hostapd (Native Wi-Fi Access Point / Hotspot Controller)
-          wget -O work/vince_root/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
-          chmod +x work/vince_root/bin/hostapd || true
+          # C. Hostapd (Wi-Fi Access Point Controller)
+          wget -O work/vince_native/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
+          chmod +x work/vince_native/bin/hostapd || true
 
-          # --- 2. FILE KONFIGURASI DNSMASQ ---
-          cat << 'CONF' > work/vince_root/etc/router/dnsmasq.conf
+          # --- 2. KONFIGURASI DNSMASQ ---
+          cat << 'CONF' > work/vince_native/etc/router/dnsmasq.conf
           interface=wlan0
           dhcp-range=192.168.4.50,192.168.4.150,12h
           dhcp-option=3,192.168.4.1
           dhcp-option=6,8.8.8.8,1.1.1.1
           CONF
 
-          # --- 3. FILE KONFIGURASI HOSTAPD (Wi-Fi Hotspot Tanpa Layar) ---
-          cat << 'HCONF' > work/vince_root/etc/router/hostapd.conf
+          # --- 3. KONFIGURASI HOSTAPD (Wi-Fi Hotspot Tanpa Layar) ---
+          cat << 'HCONF' > work/vince_native/etc/router/hostapd.conf
           interface=wlan0
           driver=nl80211
           ssid=Vince_Headless_AP
@@ -64,7 +64,7 @@ jobs:
           HCONF
 
           # --- 4. WEB DASHBOARD ALA LUCI OPENWRT (Akses via Chrome) ---
-          cat << 'HTML' > work/vince_root/web_ui/index.html
+          cat << 'HTML' > work/vince_native/web_ui/index.html
           <!DOCTYPE html>
           <html>
           <head>
@@ -86,7 +86,7 @@ jobs:
               <div class="container">
                   <h1>Vince Headless OpenWrt Gateway</h1>
                   <div class="card">
-                      <h2>System & Hardware (No LCD Mode)</h2>
+                      <h2>System & Hardware (Pure Native Headless)</h2>
                       <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
                       <div class="status-item"><span>CPU Governor:</span> <span class="badge">schedutil (Optimized)</span></div>
                       <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (A2DP)</span></div>
@@ -103,8 +103,8 @@ jobs:
           </html>
           HTML
 
-          # Backend Python Lightweight untuk nge-host Web UI di port 80
-          cat << 'PY' > work/vince_root/web_ui/server.py
+          # Backend Python Lightweight buat Web UI di port 80
+          cat << 'PY' > work/vince_native/web_ui/server.py
           import http.server
           import socketserver
           import os
@@ -117,13 +117,13 @@ jobs:
                   super().__init__(*args, directory=DIRECTORY, **kwargs)
 
           with socketserver.TCPServer(("", PORT), Handler) as httpd:
-              print(f"Serving OpenWrt Web UI at port {PORT}")
+              print(f"Serving Native Web UI at port {PORT}")
               httpd.serve_forever()
           PY
-          chmod +x work/vince_root/web_ui/server.py
+          chmod +x work/vince_native/web_ui/server.py
 
           # --- 5. SKRIP INIT ZERO-TOUCH UTAMA (Jalan Otomatis Tanpa Layar) ---
-          cat << 'SCRIPT' > work/vince_root/init_gateway.sh
+          cat << 'SCRIPT' > work/vince_native/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
 
@@ -143,8 +143,8 @@ jobs:
 
           # D. Wi-Fi SoftAP & Hotspot (Jalankan Hostapd & Dnsmasq)
           ifconfig wlan0 up 2>/dev/null || true
-          # /vince_root/bin/hostapd -B /vince_root/etc/router/hostapd.conf
-          # /vince_root/bin/dnsmasq -C /vince_root/etc/router/dnsmasq.conf &
+          # /vince_native/bin/hostapd -B /vince_native/etc/router/hostapd.conf
+          # /vince_native/bin/dnsmasq -C /vince_native/etc/router/dnsmasq.conf &
 
           # E. Bluetooth Audio Sink (Auto-Speaker Mode Tanpa Layar)
           bluetoothctl power on 2>/dev/null || true
@@ -152,19 +152,19 @@ jobs:
           bluetoothctl pairable on 2>/dev/null || true
 
           # F. Jalankan Web Control Panel (LuCI-Style di Chrome port 80)
-          python3 /vince_root/web_ui/server.py &
+          python3 /vince_native/web_ui/server.py &
           
-          echo "Vince Headless OpenWrt Ultimate Suite Initialized Successfully!"
+          echo "Vince Native Headless Suite Initialized Successfully!"
           SCRIPT
-          chmod +x work/vince_root/init_gateway.sh
+          chmod +x work/vince_native/init_gateway.sh
 
       - name: Finalize & Package Output Boot Image
         run: |
-          cp work/boot.img output/vince-openwrt-ultimate-boot.img
+          cp work/boot.img output/vince-native-headless-boot.img
           sudo chmod -R 777 output
 
-      - name: Upload Ultimate Suite Artifact
+      - name: Upload Native Suite Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-headless-openwrt-ultimate
+          name: vince-native-headless-suite
           path: output/
