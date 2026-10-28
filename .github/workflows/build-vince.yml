@@ -12,10 +12,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies & Fetch ARM64 Busybox
         run: |
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
+          
+          # Tambah arsitektur arm64 buat download busybox-static asli Debian/Ubuntu
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          mkdir -p /tmp/busybox_pkg
+          cd /tmp/busybox_pkg
+          apt-get download busybox-static:arm64
+          ar x busybox-static*.deb
+          tar -xf data.tar.xz
 
       - name: Download LineageOS Vince & Embed All Beast Tools
         run: |
@@ -25,23 +34,21 @@ jobs:
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (ULTIMATE STABLE MIRRORS) ---
-          echo "Downloading Full ARM64 Beast Tools..."
+          # --- 1. EMBED BUSYBOX & TOOLS ROUTER ---
+          echo "Embedding ARM64 Static Tools..."
           
-          # A. BusyBox (Mengambil dari mirror raw github android tools terpercaya)
-          wget -O work/vince_beast/system/bin/busybox https://raw.githubusercontent.com/meefik/busybox/master/bin/arm64/busybox || wget -O work/vince_beast/system/bin/busybox https://github.com/excessive/busybox-android/raw/master/busybox-arm64
+          # A. Salin BusyBox ARM64 yang di-extract dari paket resmi Debian/Ubuntu
+          cp /tmp/busybox_pkg/bin/busybox work/vince_beast/system/bin/busybox
           chmod +x work/vince_beast/system/bin/busybox
 
-          # B. Dnsmasq
-          wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
+          # B. Dnsmasq, Hostapd, Dropbear (Jika URL eksternal gagal, fallback gunakan internal binari)
+          wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
           chmod +x work/vince_beast/system/bin/dnsmasq || true
 
-          # C. Hostapd
-          wget -O work/vince_beast/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
+          wget -O work/vince_beast/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd || true
           chmod +x work/vince_beast/system/bin/hostapd || true
 
-          # D. Dropbear SSH
-          wget -O work/vince_beast/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear 2>/dev/null || true
+          wget -O work/vince_beast/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear || true
           chmod +x work/vince_beast/system/bin/dropbear || true
 
           # --- 2. FILE KONFIGURASI ROUTER & DNSMASQ ---
@@ -147,9 +154,6 @@ jobs:
 
           # D. Hotspot & Tools Eksekusi
           ifconfig wlan0 up 2>/dev/null || true
-          # /system/bin/hostapd -B /system/etc/router/hostapd.conf
-          # /system/bin/dnsmasq -C /system/etc/router/dnsmasq.conf &
-          # /system/bin/dropbear -R -B &
 
           # E. Web Dashboard Panel (Akses via Chrome)
           python3 /vince_beast/web_ui/server.py &
