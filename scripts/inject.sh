@@ -3,17 +3,30 @@ set -e
 
 cd work/extracted
 
-echo "==> Unpacking vendor image for deep cleaning..."
+echo "==> Deep cleaning system partition (aggressive trim)..."
+sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/priv-app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/apex/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/wallpaper/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/product/app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/product/priv-app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/system_ext/app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/system_ext/priv-app/* 2>/dev/null || true
+
+# Jika ada partisi vendor terpisah, kita bersihkan file non-esensialnya
 if [ -f "vendor.new.dat.br" ]; then
+  echo "==> Processing vendor partition..."
   brotli -d vendor.new.dat.br -o vendor.new.dat
   python3 sdat2img.py vendor.transfer.list vendor.new.dat vendor.img 2>/dev/null || true
   mkdir -p vendor_mnt
   sudo mount -o loop vendor.img vendor_mnt/
   
-  echo "==> Cleaning vendor bloatware (keeping drivers & HAL)..."
+  # Hapus app/priv-app di vendor jika ada, tapi pertahankan firmware & lib
   sudo rm -rf vendor_mnt/app/* 2>/dev/null || true
   sudo rm -rf vendor_mnt/priv-app/* 2>/dev/null || true
-  sudo rm -rf vendor_mnt/media/* 2>/dev/null || true
+  sudo rm -rf vendor_mnt/overlay/* 2>/dev/null || true
   
   sudo umount vendor_mnt/
   img2simg vendor.img vendor_sparse.img
@@ -35,14 +48,12 @@ fi
 echo "Detected correct bin path: $SYS_BIN"
 sudo mkdir -p "$SYS_BIN" "$SYS_ETC/router" "$SYS_ETC/init" sys_mnt/system/web_ui
 
-# Injeksi tools prioritas network gateway
+# Injeksi tools network gateway prioritas
 for tool in busybox hostapd dnsmasq dropbear iw tcpdump iftop; do
   if [ -f "/tmp/native_tools/$tool" ]; then
     sudo cp "/tmp/native_tools/$tool" "$SYS_BIN/"
     sudo chmod 755 "$SYS_BIN/$tool"
     echo "Successfully injected: $tool"
-  else
-    echo "Warning: /tmp/native_tools/$tool not found!"
   fi
 done
 
