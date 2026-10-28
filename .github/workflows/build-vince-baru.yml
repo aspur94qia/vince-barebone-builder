@@ -1,4 +1,4 @@
-name: OpenWrt ImageBuilder Vince (Stable Build)
+name: OpenWrt ImageBuilder Vince (All Packages Included)
 
 on:
   push:
@@ -26,25 +26,30 @@ jobs:
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
 
-      - name: Prepare Custom Files & Firmware
+      - name: Prepare Custom Files, Extra IPKs & Firmware
         run: |
           cd imagebuilder
           
           mkdir -p tmp
           
-          # 1. Buat direktori files untuk disuntikkan ke dalam image
+          # 1. Buat direktori files & root installer
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
           mkdir -p files/etc/bluetooth
           mkdir -p files/etc/uci-defaults
           mkdir -p files/etc/crontabs
+          mkdir -p files/root/extra_packages
 
           # 2. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
-          # 3. Konfigurasi Bluetooth Speaker
+          # 3. Download IPK tambahan ke dalam /root/extra_packages agar ikut terbungkus ke boot.img
+          wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
+          wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
+
+          # 4. Konfigurasi Bluetooth Speaker
           cat << 'BTCONF' > files/etc/bluetooth/main.conf
           [General]
           Name = OpenWrt Vince Speaker
@@ -53,9 +58,14 @@ jobs:
           PairableTimeout = 0
           BTCONF
 
-          # 4. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
+          # 5. Skrip First Boot (Auto Install IPK, Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
+          
+          # Auto Install IPK ekstra jika ada
+          if [ -d /root/extra_packages ]; then
+            opkg install /root/extra_packages/*.ipk || true
+          fi
           
           # Auto TTL 64 Bypass via iptables
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
@@ -81,6 +91,7 @@ jobs:
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
+          bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on
           bluetoothctl pairable on
@@ -95,11 +106,11 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Stable Image with All Compatible Packages
+      - name: Build Full Image with Native Compatible Packages
         run: |
           cd imagebuilder
           
-          # Paket resmi yang 100% kompatibel dan lengkap
+          # Paket resmi yang 100% aman dikompilasi
           PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
