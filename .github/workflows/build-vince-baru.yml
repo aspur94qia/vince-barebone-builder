@@ -91,20 +91,18 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & All Packages
+      - name: Configure Armvirt Target & Compatible Packages
         run: |
           cd openwrt
           
-          cat << 'ALLCONF' > .config
-          # Kunci Board & Subtarget Armvirt 64-bit
-          CONFIG_TARGET_BOARD="armvirt"
-          CONFIG_TARGET_SUBTARGET="64"
-          CONFIG_TARGET_PROFILE="Default"
-          CONFIG_TARGET_armvirt=y
-          CONFIG_TARGET_armvirt_64=y
-          CONFIG_TARGET_armvirt_64_Default=y
+          # Langkah 1: Set seed target armvirt/64 murni
+          echo "CONFIG_TARGET_armvirt=y" > .config
+          echo "CONFIG_TARGET_armvirt_64=y" >> .config
+          make defconfig
           
-          # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
+          # Langkah 2: Tambahkan paket userspace yang 100% kompatibel dengan armvirt
+          cat << 'PKGCONF' >> .config
+          # Qualcomm Modem & SIM Userspace Tools
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
           CONFIG_PACKAGE_libqmi=y
@@ -113,16 +111,11 @@ jobs:
           CONFIG_PACKAGE_wwan=y
           CONFIG_PACKAGE_qrtr-tools=y
           CONFIG_PACKAGE_kmod-qrtr=y
-          CONFIG_PACKAGE_kmod-qrtr-smd=y
-          CONFIG_PACKAGE_kmod-qrtr-tun=y
           
-          # Hardware Suara & Bluetooth Internal
-          CONFIG_PACKAGE_kmod-sound-core=y
-          CONFIG_PACKAGE_kmod-sound-soc-core=y
+          # Sound & Bluetooth Userspace Stack
           CONFIG_PACKAGE_alsa-utils=y
           CONFIG_PACKAGE_alsa-ucm-conf=y
           CONFIG_PACKAGE_kmod-bluetooth=y
-          CONFIG_PACKAGE_kmod-bt-hci-uart=y
           CONFIG_PACKAGE_bluez-daemon=y
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
@@ -177,7 +170,7 @@ jobs:
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_bash=y
-          ALLCONF
+          PKGCONF
           
           make defconfig
           
