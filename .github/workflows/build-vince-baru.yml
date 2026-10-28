@@ -98,11 +98,11 @@ jobs:
         run: |
           cd openwrt
           
-          # Tulis Target + Seluruh Paket ke Seed .config sekaligus
           cat << 'ALLCONF' > .config
           # Target Hardware Armvirt 64-bit
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
+          CONFIG_TARGET_armvirt_64_Default=y
           
           # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
           CONFIG_PACKAGE_modemmanager=y
@@ -155,8 +155,8 @@ jobs:
           # Network Switcher, Bandwidth Monitor & Security
           CONFIG_PACKAGE_mwan3=y
           CONFIG_PACKAGE_luci-app-mwan3=y
-          CONFIG_PACKAGE_vnstat=y
-          CONFIG_PACKAGE_luci-app-vnstat=y
+          CONFIG_PACKAGE_vnstat2=y
+          CONFIG_PACKAGE_luci-app-vnstat2=y
           CONFIG_PACKAGE_luci-app-nlbwmon=y
           CONFIG_PACKAGE_luci-app-adblock=y
           CONFIG_PACKAGE_https-dns-proxy=y
@@ -174,12 +174,16 @@ jobs:
           CONFIG_PACKAGE_bash=y
           ALLCONF
           
-          # Ekspansi konfigurasi SEKALI SAJA
+          # Ekspansi konfigurasi
           make defconfig
           
-          # Verifikasi target armvirt
-          if ! grep -q "CONFIG_TARGET_armvirt=y" .config; then
-            echo "ERROR: Target armvirt masih ter-reset!"
+          # Tampilkan status target di log
+          echo "=== VERIFIKASI CONFIG TARGET ==="
+          grep "CONFIG_TARGET_" .config | head -n 10
+          
+          # Verifikasi target armvirt presisi
+          if ! grep -q 'CONFIG_TARGET_BOARD="armvirt"' .config && ! grep -q 'CONFIG_TARGET_armvirt_64=y' .config; then
+            echo "ERROR: Target armvirt ter-reset ke target lain!"
             exit 1
           fi
 
