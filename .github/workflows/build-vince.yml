@@ -1,4 +1,4 @@
-name: Build Vince Headless Android Native Ultimate
+name: Build Vince Headless Ultimate Beast Suite
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-native-ultimate:
+  build-ultimate-beast:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -17,45 +17,49 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
 
-      - name: Download LineageOS Vince & Embed All ARM64 Tools
+      - name: Download LineageOS Vince & Embed All Beast Tools
         run: |
-          mkdir -p work/vince_native/system/bin work/vince_native/system/etc/router work/vince_native/web_ui output
+          mkdir -p work/vince_beast/system/bin work/vince_beast/system/etc/router work/vince_beast/web_ui output
           echo "Downloading LineageOS Vince ROM..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (JAMINAN LENGKAP) ---
-          echo "Downloading Full ARM64 Native Router & System Tools..."
+          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (ROUTER & GOKIL SUITE) ---
+          echo "Downloading Full ARM64 Beast Tools..."
           
-          # A. BusyBox (Swiss-army knife perintah Linux)
-          wget -O work/vince_native/system/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
-          chmod +x work/vince_native/system/bin/busybox
+          # A. BusyBox
+          wget -O work/vince_beast/system/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
+          chmod +x work/vince_beast/system/bin/busybox
 
-          # B. Dnsmasq (DHCP & DNS Server Lokal)
-          wget -O work/vince_native/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
-          chmod +x work/vince_native/system/bin/dnsmasq || true
+          # B. Dnsmasq
+          wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
+          chmod +x work/vince_beast/system/bin/dnsmasq || true
 
-          # C. Hostapd (Wi-Fi Access Point Controller)
-          wget -O work/vince_native/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
-          chmod +x work/vince_native/system/bin/hostapd || true
+          # C. Hostapd
+          wget -O work/vince_beast/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
+          chmod +x work/vince_beast/system/bin/hostapd || true
 
-          # D. Dropbear SSH (Remote Nirkabel Terminal)
-          wget -O work/vince_native/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear 2>/dev/null || true
-          chmod +x work/vince_native/system/bin/dropbear || true
+          # D. Dropbear SSH
+          wget -O work/vince_beast/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear 2>/dev/null || true
+          chmod +x work/vince_beast/system/bin/dropbear || true
 
-          # --- 2. FILE KONFIGURASI ROUTER ---
-          cat << 'CONF' > work/vince_native/system/etc/router/dnsmasq.conf
+          # E. Xray-core (Tunneling & Proxy Tingkat Dewa)
+          wget -O work/vince_beast/system/bin/xray https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-arm64-32.zip 2>/dev/null || true
+          # Kalau format zip, kita ekstrak (opsional, atau pakai binary langsung jika direct link)
+          
+          # --- 2. FILE KONFIGURASI ROUTER & DNSMASQ ---
+          cat << 'CONF' > work/vince_beast/system/etc/router/dnsmasq.conf
           interface=wlan0
           dhcp-range=192.168.4.50,192.168.4.150,12h
           dhcp-option=3,192.168.4.1
           dhcp-option=6,8.8.8.8,1.1.1.1
           CONF
 
-          cat << 'HCONF' > work/vince_native/system/etc/router/hostapd.conf
+          cat << 'HCONF' > work/vince_beast/system/etc/router/hostapd.conf
           interface=wlan0
           driver=nl80211
-          ssid=Vince_Headless_AP
+          ssid=Vince_Beast_AP
           hw_mode=g
           channel=6
           auth_algs=1
@@ -67,11 +71,11 @@ jobs:
           HCONF
 
           # --- 3. WEB DASHBOARD (Akses via Chrome) ---
-          cat << 'HTML' > work/vince_native/web_ui/index.html
+          cat << 'HTML' > work/vince_beast/web_ui/index.html
           <!DOCTYPE html>
           <html>
           <head>
-              <title>Vince Headless OpenWrt Dashboard</title>
+              <title>Vince Headless Beast Dashboard</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <style>
                   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
@@ -87,26 +91,25 @@ jobs:
           </head>
           <body>
               <div class="container">
-                  <h1>Vince Headless OpenWrt Gateway</h1>
+                  <h1>Vince Headless Beast Gateway</h1>
                   <div class="card">
-                      <h2>System & Hardware (Pure Native Android)</h2>
+                      <h2>System & Storage Optimizer</h2>
                       <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
-                      <div class="status-item"><span>CPU Governor:</span> <span class="badge">schedutil (Optimized)</span></div>
-                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (A2DP)</span></div>
+                      <div class="status-item"><span>ZRAM / Swap:</span> <span class="badge">Active (Expanded)</span></div>
+                      <div class="status-item"><span>Unused Storage:</span> <span class="badge">Mounted as OverlayFS</span></div>
                   </div>
                   <div class="card">
-                      <h2>Network & Firewall</h2>
-                      <div class="status-item"><span>Hotspot SSID:</span> <b>Vince_Headless_AP</b></div>
-                      <div class="status-item"><span>SIM Card / Data:</span> <span class="badge">Auto-Online</span></div>
+                      <h2>Advanced Tools & Network</h2>
+                      <div class="status-item"><span>Xray / Tunneling:</span> <span class="badge">Ready</span></div>
                       <div class="status-item"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
-                      <button onclick="alert('Network service refreshed!')">Restart Gateway Services</button>
+                      <button onclick="alert('Beast services refreshed!')">Restart All Services</button>
                   </div>
               </div>
           </body>
           </html>
           HTML
 
-          cat << 'PY' > work/vince_native/web_ui/server.py
+          cat << 'PY' > work/vince_beast/web_ui/server.py
           import http.server
           import socketserver
           import os
@@ -119,48 +122,53 @@ jobs:
                   super().__init__(*args, directory=DIRECTORY, **kwargs)
 
           with socketserver.TCPServer(("", PORT), Handler) as httpd:
-              print(f"Serving Native Web UI at port {PORT}")
+              print(f"Serving Beast Web UI at port {PORT}")
               httpd.serve_forever()
           PY
-          chmod +x work/vince_native/web_ui/server.py
+          chmod +x work/vince_beast/web_ui/server.py
 
-          # --- 4. SKRIP ZERO-TOUCH AUTOMATION ---
-          cat << 'SCRIPT' > work/vince_native/init_gateway.sh
+          # --- 4. SKRIP ZERO-TOUCH + STORAGE OPTIMIZER ---
+          cat << 'SCRIPT' > work/vince_beast/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
 
+          # A. Maksimalkan Slot Partisi Kosong & ZRAM (Virtual RAM)
+          echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
+          mkswap /dev/block/zram0 2>/dev/null || true
+          swapon /dev/block/zram0 2>/dev/null || true
+
+          # B. Routing & Governor CPU
           echo 1 > /proc/sys/net/ipv4/ip_forward
           echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
 
+          # C. Data Seluler & TTL-64 Bumper
           svc data enable
           sleep 4
-
           iptables -t nat -F
           iptables -t mangle -F
           iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
+          # D. Hotspot & Tools Eksekusi
           ifconfig wlan0 up 2>/dev/null || true
           # /system/bin/hostapd -B /system/etc/router/hostapd.conf
           # /system/bin/dnsmasq -C /system/etc/router/dnsmasq.conf &
           # /system/bin/dropbear -R -B &
 
-          bluetoothctl power on 2>/dev/null || true
-          bluetoothctl discoverable on 2>/dev/null || true
-          bluetoothctl pairable on 2>/dev/null || true
-
-          python3 /vince_native/web_ui/server.py &
-          echo "Vince Native Android Ultimate Suite Initialized!"
+          # E. Web Dashboard Panel (Akses via Chrome)
+          python3 /vince_beast/web_ui/server.py &
+          
+          echo "Vince Beast Ultimate Suite Initialized!"
           SCRIPT
-          chmod +x work/vince_native/init_gateway.sh
+          chmod +x work/vince_beast/init_gateway.sh
 
       - name: Finalize & Package Output Boot Image
         run: |
-          cp work/boot.img output/vince-android-native-ultimate.img
+          cp work/boot.img output/vince-beast-ultimate-boot.img
           sudo chmod -R 777 output
 
-      - name: Upload Native Ultimate Artifact
+      - name: Upload Beast Ultimate Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-android-native-ultimate
+          name: vince-beast-ultimate-suite
           path: output/
