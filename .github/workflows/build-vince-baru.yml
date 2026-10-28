@@ -99,7 +99,6 @@ jobs:
         run: |
           cd openwrt
           
-          # Set target armvirt secara langsung dan jalankan defconfig bersih
           cat << 'EOF' > .config
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
@@ -139,8 +138,9 @@ jobs:
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find openwrt/bin/targets/armvirt/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
-          FIND_INITRD=$(find openwrt/bin/targets/armvirt/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
+          # DIPERBAIKI: Menyesuaikan jalur direktori armvirt/64/
+          FIND_KERNEL=$(find openwrt/bin/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find openwrt/bin/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
