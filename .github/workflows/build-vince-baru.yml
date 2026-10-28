@@ -1,4 +1,4 @@
-name: OpenWrt Image Builder (Fast Build)
+name: OpenWrt Docker ImageBuilder (Fast Build)
 
 on:
   push:
@@ -18,36 +18,22 @@ jobs:
           sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Download & Extract OpenWrt Image Builder
+      - name: Prepare Custom Files & Firmware
         run: |
-          # Download Image Builder resmi untuk target armvirt/64 versi 23.05
-          ARCH_URL="https://downloads.openwrt.org/releases/23.05.5/targets/armvirt/64/openwrt-imagebuilder-23.05.5-armvirt-64.Linux-x86_64.tar.xz"
-          wget -q "$ARCH_URL" -O imagebuilder.tar.xz
-          tar -xf imagebuilder.tar.xz
-          mv openwrt-imagebuilder-* imagebuilder
-          cd imagebuilder
-          
-          # Bersihkan package bawaan yang tidak diperlukan jika ada
-          rm -rf files || true
-
-      - name: Inject Firmware, Custom Files & Init Scripts
-        run: |
-          cd imagebuilder
-          
           # 1. Buat direktori files untuk disuntikkan ke dalam image
-          mkdir -p files/lib/firmware/qcom
-          mkdir -p files/lib/firmware/wcn36xx
-          mkdir -p files/etc/bluetooth
-          mkdir -p files/etc/uci-defaults
-          mkdir -p files/etc/crontabs
+          mkdir -p custom-files/lib/firmware/qcom
+          mkdir -p custom-files/lib/firmware/wcn36xx
+          mkdir -p custom-files/etc/bluetooth
+          mkdir -p custom-files/etc/uci-defaults
+          mkdir -p custom-files/etc/crontabs
 
           # 2. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
-          wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
-          wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
-          wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
+          wget -q -O custom-files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
+          wget -q -O custom-files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
+          wget -q -O custom-files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
           # 3. Konfigurasi Bluetooth Speaker
-          cat << 'BTCONF' > files/etc/bluetooth/main.conf
+          cat << 'BTCONF' > custom-files/etc/bluetooth/main.conf
           [General]
           Name = OpenWrt Vince Speaker
           Class = 0x240404
@@ -56,7 +42,7 @@ jobs:
           BTCONF
 
           # 4. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
-          cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
+          cat << 'SCRIPT' > custom-files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
           # Auto TTL 64 Bypass via iptables
@@ -76,7 +62,7 @@ jobs:
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
           # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
-          echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
+          echo "0 4 * * * /sbin/reboot" >> custom-files/etc/crontabs/root
           
           # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
@@ -96,31 +82,30 @@ jobs:
           
           exit 0
           SCRIPT
-          chmod +x files/etc/uci-defaults/99-vince-init
+          chmod +x custom-files/etc/uci-defaults/99-vince-init
 
-      - name: Build Image using Make
+      - name: Build Image via Official OpenWrt ImageBuilder Container
         run: |
-          cd imagebuilder
-          
-          # Daftar paket esensial (Modem, Wi-Fi, LuCI, dan Utilitas) yang digabung instan
-          PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
-          
-          # Jalankan make image (proses ini sangat cepat, biasanya < 2 menit)
-          make image PROFILE="generic" PACKAGES="$PACKAGES"
+          # Jalankan container Docker ImageBuilder resmi armvirt/64 versi 23.05
+          docker run --rm \
+            -v "$(pwd)/custom-files:/builder/files" \
+            -v "$(pwd)/output-builder:/builder/bin" \
+            openwrt/imagebuilder:openwrt-23.05 armvirt-64 \
+            PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
 
       - name: Pack to Android boot.img
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
-          FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
+          FIND_KERNEL=$(find output-builder/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find output-builder/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
-            find imagebuilder/bin/targets/ -type f
+            find output-builder/targets/ -type f
             exit 1
           fi
 
