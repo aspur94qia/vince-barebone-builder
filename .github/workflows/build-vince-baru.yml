@@ -115,21 +115,20 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Compatible Packages
+      - name: Configure Armvirt Target & Single-Pass Packages
         run: |
           cd openwrt
           
-          # TAHAP 1: Set Target Armvirt 64-bit murni
-          echo "CONFIG_TARGET_armvirt=y" > .config
-          echo "CONFIG_TARGET_armvirt_64=y" >> .config
-          make defconfig
-          
-          # TAHAP 2: Tambahkan seluruh paket userspace & tools tambahan
-          cat << 'PKGCONF' >> .config
-          # Hostapd & Wi-Fi Userspace
-          CONFIG_PACKAGE_hostapd=y
+          # Dapatkan konfigurasi seed utuh (Target + Profile + Paket)
+          cat << 'ALLCONF' > .config
+          # Target Hardware Armvirt 64-bit
+          CONFIG_TARGET_armvirt=y
+          CONFIG_TARGET_armvirt_64=y
+          CONFIG_TARGET_armvirt_64_Default=y
+
+          # Wi-Fi Userspace (wpad-mbedtls sudah mencakup hostapd)
           CONFIG_PACKAGE_wpad-mbedtls=y
-          
+
           # Driver Modem SIM Card Internal Qualcomm & TTL Fix
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
@@ -139,38 +138,38 @@ jobs:
           CONFIG_PACKAGE_qrtr-tools=y
           CONFIG_PACKAGE_iptables-mod-ipopt=y
           CONFIG_PACKAGE_kmod-ipt-ipopt=y
-          
+
           # Modem & SIM Tools (Band Locker, SMS/USSD, AT Commands)
           CONFIG_PACKAGE_luci-app-modemband=y
           CONFIG_PACKAGE_luci-app-sms-tool=y
           CONFIG_PACKAGE_luci-app-atcommands=y
           CONFIG_PACKAGE_sms-tool=y
-          
+
           # Tunneling & Injeksi Internet
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_PACKAGE_luci-app-passwall=y
-          
+
           # Optimasi TCP BBR, SmartDNS & ZRAM Swap
           CONFIG_PACKAGE_kmod-tcp-bbr=y
           CONFIG_PACKAGE_smartdns=y
           CONFIG_PACKAGE_luci-app-smartdns=y
           CONFIG_PACKAGE_zram-swap=y
           CONFIG_PACKAGE_kmod-zram=y
-          
+
           # Sound & Bluetooth Userspace Stack
           CONFIG_PACKAGE_alsa-utils=y
           CONFIG_PACKAGE_alsa-ucm-conf=y
           CONFIG_PACKAGE_bluez-daemon=y
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
-          
+
           # LuCI UI, Argon Theme, Web File Manager & Web Terminal
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-app-ttyd=y
           CONFIG_PACKAGE_luci-app-filemanager=y
-          
+
           # Wi-Fi Repeater (WISP) & Multi-WAN Switcher
           CONFIG_PACKAGE_travelmate=y
           CONFIG_PACKAGE_luci-app-travelmate=y
@@ -178,7 +177,7 @@ jobs:
           CONFIG_PACKAGE_luci-proto-relay=y
           CONFIG_PACKAGE_mwan3=y
           CONFIG_PACKAGE_luci-app-mwan3=y
-          
+
           # USB Tethering & Support Modem USB
           CONFIG_PACKAGE_kmod-usb-net=y
           CONFIG_PACKAGE_kmod-usb-net-rndis=y
@@ -186,7 +185,7 @@ jobs:
           CONFIG_PACKAGE_kmod-usb-serial=y
           CONFIG_PACKAGE_kmod-usb-serial-option=y
           CONFIG_PACKAGE_usb-modeswitch=y
-          
+
           # Storage & Partisi eMMC
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-fs-ext4=y
@@ -195,7 +194,7 @@ jobs:
           CONFIG_PACKAGE_luci-app-diskman=y
           CONFIG_PACKAGE_luci-app-samba4=y
           CONFIG_PACKAGE_luci-app-aria2=y
-          
+
           # Bandwidth Monitor, Security & VPN Remote
           CONFIG_PACKAGE_vnstat=y
           CONFIG_PACKAGE_luci-app-vnstat=y
@@ -207,17 +206,17 @@ jobs:
           CONFIG_PACKAGE_luci-app-sqm=y
           CONFIG_PACKAGE_tailscale=y
           CONFIG_PACKAGE_luci-app-wireguard=y
-          
+
           # Utilitas Terminal CLI
           CONFIG_PACKAGE_nano=y
           CONFIG_PACKAGE_htop=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_bash=y
-          PKGCONF
-          
+          ALLCONF
+
           make defconfig
-          
+
           # Verifikasi target armvirt
           if ! grep -q 'CONFIG_TARGET_BOARD="armvirt"' .config && ! grep -q 'CONFIG_TARGET_armvirt_64=y' .config; then
             echo "ERROR: Target armvirt ter-reset!"
