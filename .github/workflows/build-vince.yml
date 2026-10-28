@@ -27,16 +27,12 @@ jobs:
 
           # --- 1. DOWNLOAD BINARI ARM64 NATIVE (BUSYBOX, DNSMASQ, HOSTAPD) ---
           echo "Downloading ARM64 Native Tools..."
-          
-          # A. BusyBox (Swiss-army knife sistem dasar)
           wget -O work/vince_native/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
           chmod +x work/vince_native/bin/busybox
 
-          # B. Dnsmasq (DHCP & DNS Lokal)
           wget -O work/vince_native/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
           chmod +x work/vince_native/bin/dnsmasq || true
 
-          # C. Hostapd (Wi-Fi Access Point Controller)
           wget -O work/vince_native/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
           chmod +x work/vince_native/bin/hostapd || true
 
@@ -48,7 +44,7 @@ jobs:
           dhcp-option=6,8.8.8.8,1.1.1.1
           CONF
 
-          # --- 3. KONFIGURASI HOSTAPD (Wi-Fi Hotspot Tanpa Layar) ---
+          # --- 3. KONFIGURASI HOSTAPD ---
           cat << 'HCONF' > work/vince_native/etc/router/hostapd.conf
           interface=wlan0
           driver=nl80211
@@ -63,7 +59,7 @@ jobs:
           rsn_pairwise=CCMP
           HCONF
 
-          # --- 4. WEB DASHBOARD ALA LUCI OPENWRT (Akses via Chrome) ---
+          # --- 4. WEB DASHBOARD (Akses via Chrome) ---
           cat << 'HTML' > work/vince_native/web_ui/index.html
           <!DOCTYPE html>
           <html>
@@ -103,7 +99,6 @@ jobs:
           </html>
           HTML
 
-          # Backend Python Lightweight buat Web UI di port 80
           cat << 'PY' > work/vince_native/web_ui/server.py
           import http.server
           import socketserver
@@ -122,39 +117,30 @@ jobs:
           PY
           chmod +x work/vince_native/web_ui/server.py
 
-          # --- 5. SKRIP INIT ZERO-TOUCH UTAMA (Jalan Otomatis Tanpa Layar) ---
+          # --- 5. SKRIP INIT ZERO-TOUCH ---
           cat << 'SCRIPT' > work/vince_native/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
 
-          # A. Routing & Governor CPU (Jaga Suhu Adem 24/7)
           echo 1 > /proc/sys/net/ipv4/ip_forward
           echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
 
-          # B. Paksa Aktifkan Data Seluler & SIM Card Tanpa Intervensi
           svc data enable
           sleep 4
 
-          # C. Firewall, NAT, & TTL-64 Bumper (Anti-Tethering Operator)
           iptables -t nat -F
           iptables -t mangle -F
           iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
-          # D. Wi-Fi SoftAP & Hotspot (Jalankan Hostapd & Dnsmasq)
           ifconfig wlan0 up 2>/dev/null || true
-          # /vince_native/bin/hostapd -B /vince_native/etc/router/hostapd.conf
-          # /vince_native/bin/dnsmasq -C /vince_native/etc/router/dnsmasq.conf &
-
-          # E. Bluetooth Audio Sink (Auto-Speaker Mode Tanpa Layar)
+          
           bluetoothctl power on 2>/dev/null || true
           bluetoothctl discoverable on 2>/dev/null || true
           bluetoothctl pairable on 2>/dev/null || true
 
-          # F. Jalankan Web Control Panel (LuCI-Style di Chrome port 80)
           python3 /vince_native/web_ui/server.py &
-          
-          echo "Vince Native Headless Suite Initialized Successfully!"
+          echo "Vince Native Headless Suite Initialized!"
           SCRIPT
           chmod +x work/vince_native/init_gateway.sh
 
