@@ -1,4 +1,4 @@
-name: Build Vince Headless OpenWrt Native Suite
+name: Build Vince Headless Android Native Ultimate
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-native-suite:
+  build-native-ultimate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -17,35 +17,42 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
 
-      - name: Download LineageOS Vince & Native Router Binaries
+      - name: Download LineageOS Vince & Embed All ARM64 Tools
         run: |
-          mkdir -p work/vince_native/bin work/vince_native/etc/router work/vince_native/web_ui output
+          mkdir -p work/vince_native/system/bin work/vince_native/system/etc/router work/vince_native/web_ui output
           echo "Downloading LineageOS Vince ROM..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. DOWNLOAD BINARI ARM64 NATIVE (BUSYBOX, DNSMASQ, HOSTAPD) ---
-          echo "Downloading ARM64 Native Tools..."
-          wget -O work/vince_native/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
-          chmod +x work/vince_native/bin/busybox
+          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (JAMINAN LENGKAP) ---
+          echo "Downloading Full ARM64 Native Router & System Tools..."
+          
+          # A. BusyBox (Swiss-army knife perintah Linux)
+          wget -O work/vince_native/system/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
+          chmod +x work/vince_native/system/bin/busybox
 
-          wget -O work/vince_native/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
-          chmod +x work/vince_native/bin/dnsmasq || true
+          # B. Dnsmasq (DHCP & DNS Server Lokal)
+          wget -O work/vince_native/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
+          chmod +x work/vince_native/system/bin/dnsmasq || true
 
-          wget -O work/vince_native/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
-          chmod +x work/vince_native/bin/hostapd || true
+          # C. Hostapd (Wi-Fi Access Point Controller)
+          wget -O work/vince_native/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
+          chmod +x work/vince_native/system/bin/hostapd || true
 
-          # --- 2. KONFIGURASI DNSMASQ ---
-          cat << 'CONF' > work/vince_native/etc/router/dnsmasq.conf
+          # D. Dropbear SSH (Remote Nirkabel Terminal)
+          wget -O work/vince_native/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear 2>/dev/null || true
+          chmod +x work/vince_native/system/bin/dropbear || true
+
+          # --- 2. FILE KONFIGURASI ROUTER ---
+          cat << 'CONF' > work/vince_native/system/etc/router/dnsmasq.conf
           interface=wlan0
           dhcp-range=192.168.4.50,192.168.4.150,12h
           dhcp-option=3,192.168.4.1
           dhcp-option=6,8.8.8.8,1.1.1.1
           CONF
 
-          # --- 3. KONFIGURASI HOSTAPD ---
-          cat << 'HCONF' > work/vince_native/etc/router/hostapd.conf
+          cat << 'HCONF' > work/vince_native/system/etc/router/hostapd.conf
           interface=wlan0
           driver=nl80211
           ssid=Vince_Headless_AP
@@ -59,7 +66,7 @@ jobs:
           rsn_pairwise=CCMP
           HCONF
 
-          # --- 4. WEB DASHBOARD (Akses via Chrome) ---
+          # --- 3. WEB DASHBOARD (Akses via Chrome) ---
           cat << 'HTML' > work/vince_native/web_ui/index.html
           <!DOCTYPE html>
           <html>
@@ -82,7 +89,7 @@ jobs:
               <div class="container">
                   <h1>Vince Headless OpenWrt Gateway</h1>
                   <div class="card">
-                      <h2>System & Hardware (Pure Native Headless)</h2>
+                      <h2>System & Hardware (Pure Native Android)</h2>
                       <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
                       <div class="status-item"><span>CPU Governor:</span> <span class="badge">schedutil (Optimized)</span></div>
                       <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (A2DP)</span></div>
@@ -117,7 +124,7 @@ jobs:
           PY
           chmod +x work/vince_native/web_ui/server.py
 
-          # --- 5. SKRIP INIT ZERO-TOUCH ---
+          # --- 4. SKRIP ZERO-TOUCH AUTOMATION ---
           cat << 'SCRIPT' > work/vince_native/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
@@ -134,23 +141,26 @@ jobs:
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
           ifconfig wlan0 up 2>/dev/null || true
-          
+          # /system/bin/hostapd -B /system/etc/router/hostapd.conf
+          # /system/bin/dnsmasq -C /system/etc/router/dnsmasq.conf &
+          # /system/bin/dropbear -R -B &
+
           bluetoothctl power on 2>/dev/null || true
           bluetoothctl discoverable on 2>/dev/null || true
           bluetoothctl pairable on 2>/dev/null || true
 
           python3 /vince_native/web_ui/server.py &
-          echo "Vince Native Headless Suite Initialized!"
+          echo "Vince Native Android Ultimate Suite Initialized!"
           SCRIPT
           chmod +x work/vince_native/init_gateway.sh
 
       - name: Finalize & Package Output Boot Image
         run: |
-          cp work/boot.img output/vince-native-headless-boot.img
+          cp work/boot.img output/vince-android-native-ultimate.img
           sudo chmod -R 777 output
 
-      - name: Upload Native Suite Artifact
+      - name: Upload Native Ultimate Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-native-headless-suite
+          name: vince-android-native-ultimate
           path: output/
