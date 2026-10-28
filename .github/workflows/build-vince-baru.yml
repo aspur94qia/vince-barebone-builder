@@ -38,9 +38,8 @@ jobs:
           
           ./scripts/feeds install -a
           
-          # Tambahkan tools modem & tema argon yang kompatibel dengan master
+          # Tambahkan tools modem (Tanpa Argon untuk menghindari error wget-any di master)
           mkdir -p package/custom
-          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/custom/luci-theme-argon || true
           git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/modemband || true
           git clone --depth 1 https://github.com/obsy/luci-app-sms-tool.git package/custom/sms-tool || true
 
@@ -153,10 +152,10 @@ jobs:
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
 
-          # LuCI UI & Argon Theme
+          # LuCI UI & Tema Bootstrap (Stabil di Master)
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-theme-bootstrap=y
           CONFIG_PACKAGE_luci-app-ttyd=y
 
           # USB Tethering & Modem USB Support
