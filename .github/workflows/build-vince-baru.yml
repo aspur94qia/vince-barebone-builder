@@ -1,4 +1,4 @@
-name: Fresh OpenWrt Vince Build
+name: Fresh OpenWrt Vince Build (Master)
 
 on:
   push:
@@ -21,28 +21,23 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt 23.05 Stable & Add Feeds
+      - name: Clone OpenWrt Master & Add Feeds
         run: |
-          git clone --depth 1 -b openwrt-23.05 https://git.openwrt.org/openwrt/openwrt.git openwrt
+          # Kembali menggunakan branch master (terbaru)
+          git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
+          
+          # Hapus feed video jika sering bikin warning/error
+          sed -i '/video/d' feeds.conf.default
           
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
-          # Clone Tools Tambahan (Tanpa Argon untuk menghindari error wget-any)
+          # Tambahkan tools modem & tema argon yang kompatibel dengan master
           mkdir -p package/custom
-          git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/luci-app-modemband || true
-          git clone --depth 1 https://github.com/obsy/luci-app-sms-tool.git package/custom/luci-app-sms-tool || true
-          git clone --depth 1 https://github.com/kostevanchuk/luci-app-atcommands.git package/custom/luci-app-atcommands || true
-          git clone --depth 1 https://github.com/vernesong/OpenClash.git package/custom/luci-app-openclash || true
-          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall.git package/custom/passwall || true
-          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/custom/passwall-packages || true
-          git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/custom/luci-app-filemanager || true
-
-          # Bersihkan paket duplikat dari passwall-packages yang bentrok dengan official feeds
-          rm -rf package/custom/passwall-packages/chinadns-ng
-          rm -rf package/custom/passwall-packages/dns2tcp
-          rm -rf package/custom/passwall-packages/shadowsocks-rust
+          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/custom/luci-theme-argon || true
+          git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/modemband || true
+          git clone --depth 1 https://github.com/obsy/luci-app-sms-tool.git package/custom/sms-tool || true
 
       - name: Inject Firmware, Auto Configs, Auto TTL & Init Scripts
         run: |
@@ -110,17 +105,18 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Stable Packages
+      - name: Configure Armvirt Target & Master Packages
         run: |
           cd openwrt
           
-          # Inisialisasi seed config utuh
+          # Kunci target armvirt master
           cat << 'EOF' > .config
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
 
-          # Dependensi Dasar
+          # Dependensi Utama Master
+          CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_bash=y
 
@@ -135,46 +131,30 @@ jobs:
           CONFIG_PACKAGE_wwan=y
           CONFIG_PACKAGE_qrtr-tools=y
 
-          # Modem & SIM Tools (Band Locker, SMS/USSD, AT Commands)
+          # Modem Tools
           CONFIG_PACKAGE_luci-app-modemband=y
           CONFIG_PACKAGE_luci-app-sms-tool=y
-          CONFIG_PACKAGE_luci-app-atcommands=y
           CONFIG_PACKAGE_sms-tool=y
 
-          # Tunneling & Injeksi Internet
-          CONFIG_PACKAGE_luci-app-openclash=y
-          CONFIG_PACKAGE_luci-app-passwall=y
-
-          # Optimasi TCP BBR, SmartDNS & ZRAM Swap
+          # Optimasi TCP BBR & ZRAM Swap
           CONFIG_PACKAGE_kmod-tcp-bbr=y
-          CONFIG_PACKAGE_smartdns=y
-          CONFIG_PACKAGE_luci-app-smartdns=y
           CONFIG_PACKAGE_zram-swap=y
           CONFIG_PACKAGE_kmod-zram=y
 
-          # Sound & Bluetooth Userspace Stack
+          # Sound & Bluetooth Stack
           CONFIG_PACKAGE_alsa-utils=y
           CONFIG_PACKAGE_alsa-ucm-conf=y
           CONFIG_PACKAGE_bluez-daemon=y
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
 
-          # LuCI UI (Menggunakan tema default Bootstrap/Material yang stabil)
+          # LuCI UI & Argon Theme
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-bootstrap=y
+          CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-app-ttyd=y
-          CONFIG_PACKAGE_luci-app-filemanager=y
 
-          # Wi-Fi Repeater (WISP) & Multi-WAN Switcher
-          CONFIG_PACKAGE_travelmate=y
-          CONFIG_PACKAGE_luci-app-travelmate=y
-          CONFIG_PACKAGE_relayd=y
-          CONFIG_PACKAGE_luci-proto-relay=y
-          CONFIG_PACKAGE_mwan3=y
-          CONFIG_PACKAGE_luci-app-mwan3=y
-
-          # USB Tethering & Support Modem USB
+          # USB Tethering & Modem USB Support
           CONFIG_PACKAGE_kmod-usb-net=y
           CONFIG_PACKAGE_kmod-usb-net-rndis=y
           CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
@@ -189,19 +169,6 @@ jobs:
           CONFIG_PACKAGE_fdisk=y
           CONFIG_PACKAGE_luci-app-diskman=y
           CONFIG_PACKAGE_luci-app-samba4=y
-          CONFIG_PACKAGE_luci-app-aria2=y
-
-          # Bandwidth Monitor, Security & VPN Remote
-          CONFIG_PACKAGE_vnstat=y
-          CONFIG_PACKAGE_luci-app-vnstat=y
-          CONFIG_PACKAGE_luci-app-nlbwmon=y
-          CONFIG_PACKAGE_luci-app-adblock=y
-          CONFIG_PACKAGE_https-dns-proxy=y
-          CONFIG_PACKAGE_luci-app-https-dns-proxy=y
-          CONFIG_PACKAGE_sqm=y
-          CONFIG_PACKAGE_luci-app-sqm=y
-          CONFIG_PACKAGE_tailscale=y
-          CONFIG_PACKAGE_luci-app-wireguard=y
 
           # Utilitas Terminal CLI
           CONFIG_PACKAGE_nano=y
