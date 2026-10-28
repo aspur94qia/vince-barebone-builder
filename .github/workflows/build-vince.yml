@@ -30,15 +30,13 @@ jobs:
           wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
           chmod +x *
 
-      - name: Download ROM
+      - name: Process ROM
         run: |
-          mkdir -p work output
+          mkdir -p work/extracted output
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
           unzip work/rom.zip -d work/extracted/
-
-      - name: Unpack System Image
-        run: |
+          
           cd work/extracted
           brotli -d system.new.dat.br -o system.new.dat
           wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
@@ -46,9 +44,6 @@ jobs:
           mkdir sys_mnt
           sudo mount -o loop system.img sys_mnt/
 
-      - name: Strip GUI and Inject Tools
-        run: |
-          cd work/extracted
           sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
           sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
           sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
@@ -144,19 +139,17 @@ on property:sys.boot_completed=1
 INITRC
           sudo chmod 644 "$SYS_TARGET/etc/init/vince_gateway.rc"
 
-      - name: Repack and Compress ROM
-        run: |
-          cd work/extracted
           sudo umount sys_mnt/
           img2simg system.img system_sparse.img
           wget -q https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py
           python3 img2sdat.py system_sparse.img -o . -v 4
           brotli -q 11 system.new.dat -o system.new.dat.br
           rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat.py
-          zip -9 -r "../../output/vince-mini-headless.zip" boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
+          
+          zip -9 -r ../../output/vince-mini-headless.zip boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vince-mini-headless
-          path: output/
+          path: output/vince-mini-headless.zip
