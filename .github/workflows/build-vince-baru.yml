@@ -81,7 +81,6 @@ jobs:
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on
           bluetoothctl pairable on
@@ -100,8 +99,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Kumpulan seluruh tool & paket yang direncanakan
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-basic-mbedtls kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-diskman luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils bluealsa kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
+          # Paket resmi yang dipastikan ada di repo 22.03.7 armvirt
+          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
