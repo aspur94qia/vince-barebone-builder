@@ -2,6 +2,14 @@ import sys
 import os
 import importlib.util
 
+class Options(object):
+  def __init__(self):
+    self.cache_size = None
+    self.patch = None
+    self.wood_pecker = None
+
+OPTIONS = Options()
+
 def LoadObject(name):
     p = os.path.abspath(name)
     if not p.endswith('.py'):
