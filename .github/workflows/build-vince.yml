@@ -37,13 +37,10 @@ jobs:
 
           # --- 1. EMBED BUSYBOX & TOOLS ROUTER ---
           echo "Embedding ARM64 Static Tools..."
-          
-          # Cari lokasi pasti file busybox hasil ekstrak lalu copy ke target
           BUSYBOX_BIN=$(find /tmp/busybox_pkg -name "busybox" -type f | head -n 1)
           cp "$BUSYBOX_BIN" work/vince_beast/system/bin/busybox
           chmod +x work/vince_beast/system/bin/busybox
 
-          # Dnsmasq, Hostapd, Dropbear (Fallback internal jika URL eksternal bermasalah)
           wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
           chmod +x work/vince_beast/system/bin/dnsmasq || true
 
@@ -101,11 +98,11 @@ jobs:
                       <h2>System & Storage Optimizer</h2>
                       <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
                       <div class="status-item"><span>ZRAM / Swap:</span> <span class="badge">Active (Expanded)</span></div>
-                      <div class="status-item"><span>Unused Storage:</span> <span class="badge">Mounted as OverlayFS</span></div>
+                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (Pairing Mode)</span></div>
                   </div>
                   <div class="card">
                       <h2>Advanced Tools & Network</h2>
-                      <div class="status-item"><span>Tunneling Tools:</span> <span class="badge">Ready</span></div>
+                      <div class="status-item"><span>Hotspot SSID:</span> <b>Vince_Beast_AP</b></div>
                       <div class="status-item"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
                       <button onclick="alert('Beast services refreshed!')">Restart All Services</button>
                   </div>
@@ -132,21 +129,19 @@ jobs:
           PY
           chmod +x work/vince_beast/web_ui/server.py
 
-          # --- 4. SKRIP ZERO-TOUCH + STORAGE OPTIMIZER ---
+          # --- 4. SKRIP AUTO-START PERTAMA BOOT (ZERO TOUCH) ---
           cat << 'SCRIPT' > work/vince_beast/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
 
-          # A. Maksimalkan Slot Partisi Kosong & ZRAM (Virtual RAM)
+          # A. Maksimalkan ZRAM & Routing CPU
           echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
           mkswap /dev/block/zram0 2>/dev/null || true
           swapon /dev/block/zram0 2>/dev/null || true
-
-          # B. Routing & Governor CPU
           echo 1 > /proc/sys/net/ipv4/ip_forward
           echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
 
-          # C. Data Seluler & TTL-64 Bumper
+          # B. Aktifkan SIM / Data Seluler & Firewall TTL 64
           svc data enable
           sleep 4
           iptables -t nat -F
@@ -154,13 +149,21 @@ jobs:
           iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
-          # D. Hotspot & Tools Eksekusi
-          ifconfig wlan0 up 2>/dev/null || true
+          # C. PAKSA OTOMATIS NYALA WI-FI HOTSPOT
+          svc wifi enable 2>/dev/null || true
+          cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || ifconfig wlan0 up 2>/dev/null || true
 
-          # E. Web Dashboard Panel (Akses via Chrome)
+          # D. PAKSA OTOMATIS NYALA BLUETOOTH RECEIVER (AUDIO SINK)
+          svc bluetooth enable
+          sleep 2
+          bluetoothctl power on 2>/dev/null || true
+          bluetoothctl discoverable on 2>/dev/null || true
+          bluetoothctl pairable on 2>/dev/null || true
+
+          # E. Web Control Panel
           python3 /vince_beast/web_ui/server.py &
           
-          echo "Vince Beast Ultimate Suite Initialized!"
+          echo "Vince Beast Ultimate Auto-Boot Initialized!"
           SCRIPT
           chmod +x work/vince_beast/init_gateway.sh
 
