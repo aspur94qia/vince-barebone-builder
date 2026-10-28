@@ -1,4 +1,4 @@
-name: OpenWrt ImageBuilder Vince (All Packages Included)
+name: OpenWrt ImageBuilder Vince (Fix USB & Wi-Fi)
 
 on:
   push:
@@ -26,92 +26,65 @@ jobs:
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
 
-      - name: Prepare Custom Files, Extra IPKs & Firmware
+      - name: Prepare Custom Files & Auto-Config
         run: |
           cd imagebuilder
           
           mkdir -p tmp
-          
-          # 1. Buat direktori files & root installer
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
-          mkdir -p files/etc/bluetooth
           mkdir -p files/etc/uci-defaults
-          mkdir -p files/etc/crontabs
-          mkdir -p files/root/extra_packages
+          mkdir -p files/etc/config
 
-          # 2. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
+          # 1. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
-          
-          # 3. Download IPK tambahan ke dalam /root/extra_packages agar ikut terbungkus ke boot.img
-          wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
-          wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
 
-          # 4. Konfigurasi Bluetooth Speaker
-          cat << 'BTCONF' > files/etc/bluetooth/main.conf
-          [General]
-          Name = OpenWrt Vince Speaker
-          Class = 0x240404
-          DiscoverableTimeout = 0
-          PairableTimeout = 0
-          BTCONF
+          # 2. Paksa Konfigurasi Wi-Fi Hotspot (SSID: OpenWrt-Vince)
+          cat << 'WIFI' > files/etc/config/wireless
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option channel '6'
+	option hwmode '11g'
+	option path 'platform/soc/a000000.wifi'
+	option htmode 'HT20'
+	option disabled '0'
 
-          # 5. Skrip First Boot (Auto Install IPK, Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
+config wifi-iface 'default_radio0'
+	option device 'radio0'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'OpenWrt-Vince'
+	option encryption 'none'
+WIFI
+
+          # 3. Skrip First Boot (Muat Driver Wi-Fi, USB Ethernet & TTL)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
-          # Auto Install IPK ekstra jika ada
-          if [ -d /root/extra_packages ]; then
-            opkg install /root/extra_packages/*.ipk || true
-          fi
+          # Load Driver Wi-Fi Qualcomm & USB Gadget secara paksa
+          modprobe wcn36xx || true
+          modprobe g_ether || true
+          modprobe rndis_host || true
           
-          # Auto TTL 64 Bypass via iptables
+          # Auto TTL 64 Bypass
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
-          # Auto-connect SIM Card
-          uci set network.wan=interface
-          uci set network.wan.proto='modemmanager'
-          uci set network.wan.apn='internet'
-          uci set network.wan.pdptype='ipv4v6'
-          uci set network.wan.metric='10'
-          uci set network.wan.autoconnect='1'
-          uci commit network
-          
-          # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
-          echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
-          
-          # Auto Reboot Tiap Jam 04:00 Pagi
-          echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
-          
-          # Start Bluetooth Qualcomm & Auto Discoverable
-          hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
-          /etc/init.d/bluetooth enable
-          /etc/init.d/bluetooth start
-          
-          bluealsad -p a2dp-sink &
-          sleep 2
-          bluetoothctl power on
-          bluetoothctl pairable on
-          bluetoothctl discoverable on
-          bluetoothctl agent NoInputNoOutput
-          bluetoothctl default-agent
-          
-          /etc/init.d/modemmanager enable
-          /etc/init.d/modemmanager start
+          # Restart Wi-Fi & Jaringan
+          wifi reload || wifi
+          /etc/init.d/network restart || true
           
           exit 0
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Full Image with Native Compatible Packages
+      - name: Build Image with Essential Packages
         run: |
           cd imagebuilder
           
-          # Paket resmi yang 100% aman dikompilasi
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
+          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 kmod-wcn36xx kmod-cfg80211 kmod-mac80211 kmod-usb-gadget-eth kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
@@ -121,14 +94,6 @@ jobs:
           
           FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
-          
-          echo "Found Kernel: $FIND_KERNEL"
-          echo "Found Initrd: $FIND_INITRD"
-          
-          if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
-            echo "ERROR: Kernel or Ramdisk not found!"
-            exit 1
-          fi
 
           mkbootimg \
             --kernel "$FIND_KERNEL" \
