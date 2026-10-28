@@ -30,7 +30,6 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Buat folder tmp agar make tidak error
           mkdir -p tmp
           
           # 1. Buat direktori files untuk disuntikkan ke dalam image
@@ -101,8 +100,10 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Menggunakan PROFILE="Default" (Kapital) yang terdaftar di armvirt/64 ImageBuilder
-          make image PROFILE="Default" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
+          # Daftar paket yang dibersihkan dari potensi bentrok OPKG
+          PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-basic-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
+          
+          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
