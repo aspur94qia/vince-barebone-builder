@@ -14,15 +14,17 @@ fi
 echo "Detected correct bin path: $SYS_BIN"
 sudo mkdir -p "$SYS_BIN" "$SYS_ETC/router" "$SYS_ETC/init" sys_mnt/system/web_ui
 
-sudo cp /tmp/native_tools/busybox "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/hostapd "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/dnsmasq "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/dropbear "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/iw "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/tcpdump "$SYS_BIN/" || true
-sudo cp /tmp/native_tools/iftop "$SYS_BIN/" || true
+# Salin satu-persatu secara aman jika file ada di /tmp/native_tools/
+for tool in busybox hostapd dnsmasq dropbear iw tcpdump iftop; do
+  if [ -f "/tmp/native_tools/$tool" ]; then
+    sudo cp "/tmp/native_tools/$tool" "$SYS_BIN/"
+    sudo chmod 755 "$SYS_BIN/$tool"
+    echo "Successfully injected: $tool"
+  else
+    echo "Warning: /tmp/native_tools/$tool not found!"
+  fi
+done
 
-sudo chmod 755 "$SYS_BIN/"*
 sudo "$SYS_BIN/busybox" --install -s "$SYS_BIN" 2>/dev/null || true
 
 echo "interface=wlan0" | sudo tee "$SYS_ETC/router/dnsmasq.conf" > /dev/null
