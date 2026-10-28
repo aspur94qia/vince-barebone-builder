@@ -15,31 +15,35 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget curl git unzip android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full aria2
+          sudo apt-get install -y build-essential python3 python3-pip android-sdk-libsparse-utils android-sdk-platform-tools-common abootimg mkbootimg cpio gzip
 
-      - name: Fetch Physical Vince MSM8953 Boot Image
+      - name: Build Headless Ramdisk & Init Scripts
         run: |
-          mkdir -p output/chroot_bundle
-          echo "Downloading Stock MSM8953 Boot Image from Repository Release..."
-          wget -q -O output/boot.img https://github.com/aspur94qia/vince_unitrix/releases/download/v1.0/boot.img
+          mkdir -p ramdisk/sbin output/chroot_bundle
+          
+          # 1. Buat skrip init minimal untuk ramdisk
+          cat << 'INITSCRIPT' > ramdisk/init
+          #!/split_init
+          export PATH=/sbin:/system/bin:/system/xbin
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
 
-      - name: Prepare Rootfs Linux & Custom Tools Bundle
-        run: |
-          # Membuat skrip auto-start untuk Android (RNDIS, Hotspot, SIM, Chroot Services)
-          cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
+          # Paksa USB RNDIS + ADB
+          echo rndis,adb > /sys/class/android_usb/android0/enable || true
+
+          # Jalankan autostart headless
+          /init_headless.sh &
+
+          exec /system/bin/init
+          INITSCRIPT
+          chmod +x ramdisk/init
+
+          # 2. Buat skrip autostart chroot & tools
+          cat << 'SCRIPT' > ramdisk/init_headless.sh
           #!/system/bin/sh
-          # Autostart Headless Services untuk Vince
-          
-          # 1. Paksa USB RNDIS & ADB
           setprop sys.usb.config rndis,adb
+          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           
-          # 2. Nyalakan Hotspot Wi-Fi "OpenWrt-Vince"
-          service call connectivity 33 i32 1 s16 "OpenWrt-Vince" s16 "" i32 0
-          
-          # 3. Setting TTL 64 untuk Modem SIM
-          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64
-          
-          # 4. Inisialisasi Chroot Environment untuk Tools
           CHROOT_DIR="/data/linux_tools"
           if [ -d "$CHROOT_DIR" ]; then
             mount -o bind /dev $CHROOT_DIR/dev
@@ -47,12 +51,33 @@ jobs:
             mount -t proc proc $CHROOT_DIR/proc
             mount -t sysfs sys $CHROOT_DIR/sys
             
-            # Start Aria2, Wireguard, Tmux, Vnstat, dll
             chroot $CHROOT_DIR /usr/bin/aria2c --enable-rpc --rpc-listen-all=true &
             chroot $CHROOT_DIR /usr/bin/tmux new-session -d -s main_session
           fi
           SCRIPT
-          chmod +x output/chroot_bundle/init_headless.sh
+          chmod +x ramdisk/init_headless.sh
+
+          # Pack ramdisk ke cpio.gz
+          cd ramdisk
+          find . | cpio -o -H newc | gzip -9 > ../ramdisk.cpio.gz
+          cd ..
+
+      - name: Compile Dummy MSM8953 Kernel & Pack Boot Image
+        run: |
+          # Buat file kernel placeholder jika tidak ada kompilasi kernel mentah
+          dd if=/dev/zero of=kernel_dummy bs=1M count=8
+          
+          mkbootimg \
+            --kernel kernel_dummy \
+            --ramdisk ramdisk.cpio.gz \
+            --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3 androidboot.emmc=true" \
+            --base 0x80000000 \
+            --ramdisk_offset 0x01000000 \
+            --tags_offset 0x00000100 \
+            --pagesize 2048 \
+            --output output/boot.img
+
+          cp ramdisk/init_headless.sh output/chroot_bundle/
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
