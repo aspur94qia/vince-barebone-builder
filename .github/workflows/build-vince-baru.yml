@@ -61,36 +61,11 @@ jobs:
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
-          # Auto-connect SIM Card
-          uci set network.wan=interface
-          uci set network.wan.proto='modemmanager'
-          uci set network.wan.apn='internet'
-          uci set network.wan.pdptype='ipv4v6'
-          uci set network.wan.metric='10'
-          uci set network.wan.autoconnect='1'
-          uci commit network
-          
           # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
           # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
           echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
-          
-          # Start Bluetooth Qualcomm & Auto Discoverable
-          hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
-          /etc/init.d/bluetooth enable
-          /etc/init.d/bluetooth start
-          
-          bluealsad -p a2dp-sink &
-          sleep 2
-          bluetoothctl power on
-          bluetoothctl pairable on
-          bluetoothctl discoverable on
-          bluetoothctl agent NoInputNoOutput
-          bluetoothctl default-agent
-          
-          /etc/init.d/modemmanager enable
-          /etc/init.d/modemmanager start
           
           exit 0
           SCRIPT
@@ -100,8 +75,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Daftar paket yang dibersihkan dari potensi bentrok OPKG
-          PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-basic-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
+          # Paket bersih bebas Error 255
+          PACKAGES="luci luci-ssl luci-theme-bootstrap wpad-basic-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop kmod-tun ppp"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
