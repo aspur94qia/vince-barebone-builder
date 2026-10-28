@@ -21,16 +21,21 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt Master & Add Feeds
+      - name: Clone OpenWrt Master, Clean Buggy Feeds & Add Custom Tools
         run: |
-          # Kembali menggunakan branch master (terbaru)
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Hapus feed video jika sering bikin warning/error
+          # Hapus feed video
           sed -i '/video/d' feeds.conf.default
           
           ./scripts/feeds update -a
+          
+          # Hapus paket bawaan feeds master yang memicu recursive dependency error
+          rm -rf feeds/packages/net/fwknop
+          rm -rf feeds/luci/applications/luci-app-fwknopd
+          rm -rf feeds/packages/sound/squeezelite
+          
           ./scripts/feeds install -a
           
           # Tambahkan tools modem & tema argon yang kompatibel dengan master
