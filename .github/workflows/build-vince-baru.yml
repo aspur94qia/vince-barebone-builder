@@ -95,71 +95,57 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Stable Packages
+      - name: Configure Armvirt Target & Stable Packages Safely
         run: |
           cd openwrt
           
-          # Kunci target armvirt 23.05
-          cat << 'EOF' > .config
-          CONFIG_TARGET_armvirt=y
-          CONFIG_TARGET_armvirt_64=y
-          CONFIG_TARGET_armvirt_64_Default=y
+          # LANGKAH 1: Set Target Armvirt Murni & Generate Defconfig
+          echo "CONFIG_TARGET_armvirt=y" > .config
+          echo "CONFIG_TARGET_armvirt_64=y" > .config
+          echo "CONFIG_TARGET_armvirt_64_Default=y" > .config
+          make defconfig
 
-          # Dependensi Utama Wget & SSL
+          # LANGKAH 2: Masukkan Paket Tambahan ke .config secara Append (>> .config)
+          cat << 'PKGCONF' >> .config
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_bash=y
-
-          # Wi-Fi Userspace
           CONFIG_PACKAGE_wpad-mbedtls=y
-
-          # Driver Modem SIM Card Internal Qualcomm & TTL Fix
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
           CONFIG_PACKAGE_libqmi=y
           CONFIG_PACKAGE_qmi-utils=y
           CONFIG_PACKAGE_wwan=y
           CONFIG_PACKAGE_qrtr-tools=y
-
-          # Optimasi TCP BBR & ZRAM Swap
           CONFIG_PACKAGE_kmod-tcp-bbr=y
           CONFIG_PACKAGE_zram-swap=y
           CONFIG_PACKAGE_kmod-zram=y
-
-          # Sound & Bluetooth Stack
           CONFIG_PACKAGE_alsa-utils=y
           CONFIG_PACKAGE_alsa-ucm-conf=y
           CONFIG_PACKAGE_bluez-daemon=y
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
-
-          # LuCI UI & Tema Bootstrap (Stabil di 23.05)
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_luci-theme-bootstrap=y
           CONFIG_PACKAGE_luci-app-ttyd=y
-
-          # USB Tethering & Modem USB Support
           CONFIG_PACKAGE_kmod-usb-net=y
           CONFIG_PACKAGE_kmod-usb-net-rndis=y
           CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
           CONFIG_PACKAGE_kmod-usb-serial=y
           CONFIG_PACKAGE_kmod-usb-serial-option=y
           CONFIG_PACKAGE_usb-modeswitch=y
-
-          # Storage & Partisi eMMC
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-fs-ext4=y
           CONFIG_PACKAGE_e2fsprogs=y
           CONFIG_PACKAGE_fdisk=y
           CONFIG_PACKAGE_luci-app-diskman=y
           CONFIG_PACKAGE_luci-app-samba4=y
-
-          # Utilitas Terminal CLI
           CONFIG_PACKAGE_nano=y
           CONFIG_PACKAGE_htop=y
-          EOF
+          PKGCONF
 
+          # LANGKAH 3: Jalankan make defconfig final untuk memproses semua dependensi
           make defconfig
 
           # Verifikasi target armvirt
