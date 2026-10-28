@@ -25,11 +25,11 @@ jobs:
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (MENGGUNAKAN MIRROR STABIL) ---
+          # --- 1. DOWNLOAD FULL ARM64 STATIC TOOLS (ULTIMATE STABLE MIRRORS) ---
           echo "Downloading Full ARM64 Beast Tools..."
           
-          # A. BusyBox (Menggunakan link mirror stabil ARM64)
-          wget -O work/vince_beast/system/bin/busybox https://github.com/Binarios-Android/arm64/raw/main/busybox || wget -O work/vince_beast/system/bin/busybox https://www.busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-aarch64
+          # A. BusyBox (Mengambil dari mirror raw github android tools terpercaya)
+          wget -O work/vince_beast/system/bin/busybox https://raw.githubusercontent.com/meefik/busybox/master/bin/arm64/busybox || wget -O work/vince_beast/system/bin/busybox https://github.com/excessive/busybox-android/raw/master/busybox-arm64
           chmod +x work/vince_beast/system/bin/busybox
 
           # B. Dnsmasq
