@@ -1,4 +1,4 @@
-name: OpenWrt ImageBuilder Vince (All Packages Included)
+name: OpenWrt ImageBuilder Vince (Ultimate Gokil Edition)
 
 on:
   push:
@@ -120,8 +120,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Paket resmi yang 100% aman dikompilasi
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
+          # Seluruh paket utama milikmu + paket gokil (adguardhome, aria2, ariang, mwan3, watchcat, wireguard, netdata, eqos, vnstat, iperf3, nmap, tcpdump, screen, tmux)
+          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop luci-app-adguardhome luci-app-aria2 luci-app-ariang luci-app-mwan3 luci-app-watchcat luci-app-wireguard luci-app-netdata luci-app-eqos luci-app-vnstat iperf3 tcpdump nmap screen tmux -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
