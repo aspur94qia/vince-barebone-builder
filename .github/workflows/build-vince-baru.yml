@@ -35,7 +35,6 @@ jobs:
           # 1. Buat direktori files untuk disuntikkan ke dalam image
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
-          mkdir -p files/etc/bluetooth
           mkdir -p files/etc/uci-defaults
           mkdir -p files/etc/crontabs
 
@@ -43,17 +42,8 @@ jobs:
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
-          
-          # 3. Konfigurasi Bluetooth Speaker
-          cat << 'BTCONF' > files/etc/bluetooth/main.conf
-          [General]
-          Name = OpenWrt Vince Speaker
-          Class = 0x240404
-          DiscoverableTimeout = 0
-          PairableTimeout = 0
-          BTCONF
 
-          # 4. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
+          # 3. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
@@ -64,7 +54,7 @@ jobs:
           # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
-          # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
+          # Auto Reboot Tiap Jam 04:00 Pagi
           echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
           
           exit 0
@@ -75,8 +65,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Paket bersih bebas Error 255
-          PACKAGES="luci luci-ssl luci-theme-bootstrap wpad-basic-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop kmod-tun ppp"
+          # Eksklusi paket bermasalah dengan tanda minus (-)
+          PACKAGES="luci luci-ssl luci-theme-bootstrap block-mount e2fsprogs nano htop -ppp -ppp-mod-pppoe -dnsmasq"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
