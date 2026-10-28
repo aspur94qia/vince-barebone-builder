@@ -41,56 +41,44 @@ jobs:
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
-          
+
           # 2. Download IPK ekstra
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
 
           # 3. Konfigurasi Bluetooth Main Config
-          cat << 'BTCONF' > files/etc/bluetooth/main.conf
-[General]
-Name = OpenWrt Vince Speaker
-Class = 0x240404
-DiscoverableTimeout = 0
-PairableTimeout = 0
-BTCONF
+          echo "[General]" > files/etc/bluetooth/main.conf
+          echo "Name = OpenWrt Vince Speaker" >> files/etc/bluetooth/main.conf
+          echo "Class = 0x240404" >> files/etc/bluetooth/main.conf
+          echo "DiscoverableTimeout = 0" >> files/etc/bluetooth/main.conf
+          echo "PairableTimeout = 0" >> files/etc/bluetooth/main.conf
 
           # 4. Pre-set Konfigurasi Wi-Fi Otomatis Aktif (SSID: OpenWrt-Vince)
-          cat << 'WIFICONF' > files/etc/config/wireless
-config wifi-device 'radio0'
-	option type 'mac80211'
-	option channel '6'
-	option hwmode '11g'
-	option path 'platform/soc/a000000.wifi'
-	option htmode 'HT20'
-	option disabled '0'
-
-config wifi-iface 'default_radio0'
-	option device 'radio0'
-	option network 'lan'
-	option mode 'ap'
-	option ssid 'OpenWrt-Vince'
-	option encryption 'none'
-WIFICONF
+          echo "config wifi-device 'radio0'" > files/etc/config/wireless
+          echo "	option type 'mac80211'" >> files/etc/config/wireless
+          echo "	option channel '6'" >> files/etc/config/wireless
+          echo "	option hwmode '11g'" >> files/etc/config/wireless
+          echo "	option path 'platform/soc/a000000.wifi'" >> files/etc/config/wireless
+          echo "	option htmode 'HT20'" >> files/etc/config/wireless
+          echo "	option disabled '0'" >> files/etc/config/wireless
+          echo "" >> files/etc/config/wireless
+          echo "config wifi-iface 'default_radio0'" >> files/etc/config/wireless
+          echo "	option device 'radio0'" >> files/etc/config/wireless
+          echo "	option network 'lan'" >> files/etc/config/wireless
+          echo "	option mode 'ap'" >> files/etc/config/wireless
+          echo "	option ssid 'OpenWrt-Vince'" >> files/etc/config/wireless
+          echo "	option encryption 'none'" >> files/etc/config/wireless
 
           # 5. Skrip Otomatisasi Boot Pertama
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
-          
-          # Load Driver Wi-Fi & USB Gadget
           modprobe wcn36xx || true
           modprobe g_ether || true
-          
-          # Auto Install IPK ekstra jika ada
           if [ -d /root/extra_packages ]; then
             opkg install /root/extra_packages/*.ipk || true
           fi
-          
-          # Auto TTL 64 Bypass
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
-          
-          # Auto-connect SIM Card via ModemManager
           uci set network.wan=interface
           uci set network.wan.proto='modemmanager'
           uci set network.wan.apn='internet'
@@ -98,17 +86,12 @@ WIFICONF
           uci set network.wan.metric='10'
           uci set network.wan.autoconnect='1'
           uci commit network
-          
-          # Pastikan Wi-Fi Aktif
           uci set wireless.radio0.disabled='0'
           uci commit wireless
           wifi reload || true
-          
-          # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable || true
           /etc/init.d/bluetooth start || true
-          
           bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on || true
@@ -116,16 +99,10 @@ WIFICONF
           bluetoothctl discoverable on || true
           bluetoothctl agent NoInputNoOutput || true
           bluetoothctl default-agent || true
-          
           /etc/init.d/modemmanager enable || true
           /etc/init.d/modemmanager start || true
-          
-          # Matikan Layar HP (Adem & Awet Baterai)
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
-          
-          # Auto Reboot Jam 4 Pagi
           echo "0 4 * * * /sbin/reboot" >> /etc/crontabs/root
-          
           exit 0
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
@@ -141,7 +118,6 @@ WIFICONF
           mkdir -p output
           FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
-          
           mkbootimg \
             --kernel "$FIND_KERNEL" \
             --ramdisk "$FIND_INITRD" \
