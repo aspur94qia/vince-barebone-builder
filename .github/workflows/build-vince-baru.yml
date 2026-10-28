@@ -22,26 +22,22 @@ jobs:
         run: |
           IB_URL="https://archive.openwrt.org/releases/22.03.7/targets/armvirt/64/openwrt-imagebuilder-22.03.7-armvirt-64.Linux-x86_64.tar.xz"
           wget -q "$IB_URL" -O ib.tar.xz
-          
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
 
       - name: Prepare Custom Files & Auto-Config
         run: |
           cd imagebuilder
-          
           mkdir -p tmp
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
           mkdir -p files/etc/uci-defaults
           mkdir -p files/etc/config
 
-          # 1. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
 
-          # 2. Paksa Konfigurasi Wi-Fi Hotspot (SSID: OpenWrt-Vince)
           cat << 'WIFI' > files/etc/config/wireless
 config wifi-device 'radio0'
 	option type 'mac80211'
@@ -59,23 +55,15 @@ config wifi-iface 'default_radio0'
 	option encryption 'none'
 WIFI
 
-          # 3. Skrip First Boot (Muat Driver Wi-Fi, USB Ethernet & TTL)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
-          
-          # Load Driver Wi-Fi Qualcomm & USB Gadget secara paksa
           modprobe wcn36xx || true
           modprobe g_ether || true
           modprobe rndis_host || true
-          
-          # Auto TTL 64 Bypass
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
-          
-          # Restart Wi-Fi & Jaringan
           wifi reload || wifi
           /etc/init.d/network restart || true
-          
           exit 0
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
@@ -83,18 +71,14 @@ WIFI
       - name: Build Image with Essential Packages
         run: |
           cd imagebuilder
-          
           PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 kmod-wcn36xx kmod-cfg80211 kmod-mac80211 kmod-usb-gadget-eth kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
-          
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
           mkdir -p output
-          
           FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
-
           mkbootimg \
             --kernel "$FIND_KERNEL" \
             --ramdisk "$FIND_INITRD" \
