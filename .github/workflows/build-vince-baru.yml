@@ -23,14 +23,13 @@ jobs:
 
       - name: Clone OpenWrt 23.05 Stable & Add Feeds
         run: |
-          # Gunakan cabang stabil 23.05 agar kompatibel penuh dengan OpenClash & Passwall
           git clone --depth 1 -b openwrt-23.05 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
-          # Clone Tema Argon & Tools Tambahan dari repositori resmi
+          # Clone Tema Argon & Tools Tambahan ke folder custom
           mkdir -p package/custom
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/custom/luci-theme-argon || true
           git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/luci-app-modemband || true
@@ -113,7 +112,7 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Stable Packages
+      - name: Configure Armvirt Target & Fixed Dependecies
         run: |
           cd openwrt
           
@@ -122,6 +121,11 @@ jobs:
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
+
+          # Dependensi Utama Wget untuk Tema Argon & SSL
+          CONFIG_PACKAGE_wget-ssl=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_bash=y
 
           # Wi-Fi Userspace
           CONFIG_PACKAGE_wpad-mbedtls=y
@@ -191,8 +195,8 @@ jobs:
           CONFIG_PACKAGE_luci-app-aria2=y
 
           # Bandwidth Monitor, Security & VPN Remote
-          CONFIG_PACKAGE_vnstat2=y
-          CONFIG_PACKAGE_luci-app-vnstat2=y
+          CONFIG_PACKAGE_vnstat=y
+          CONFIG_PACKAGE_luci-app-vnstat=y
           CONFIG_PACKAGE_luci-app-nlbwmon=y
           CONFIG_PACKAGE_luci-app-adblock=y
           CONFIG_PACKAGE_https-dns-proxy=y
@@ -205,9 +209,6 @@ jobs:
           # Utilitas Terminal CLI
           CONFIG_PACKAGE_nano=y
           CONFIG_PACKAGE_htop=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget-ssl=y
-          CONFIG_PACKAGE_bash=y
           EOF
 
           make defconfig
