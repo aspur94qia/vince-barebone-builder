@@ -1,0 +1,70 @@
+name: Vince Android Barebone + Linux Chroot Tools
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-barebone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget curl git unzip android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full aria2
+
+      - name: Download Stock LineageOS Vince Base ROM
+        run: |
+          mkdir -p base_rom
+          echo "Downloading LineageOS Vince Base..."
+          ROM_URL="https://downloads.sourceforge.net/project/rom-builders/files/vince/lineage-17.1-20230502-UNOFFICIAL-vince.zip"
+          aria2c -x16 -s16 -o base_rom/lineage.zip "$ROM_URL"
+          unzip base_rom/lineage.zip -d base_rom/extracted/
+
+      - name: Prepare Rootfs Linux & Custom Tools Bundle
+        run: |
+          mkdir -p output/chroot_bundle
+          
+          # Membuat skrip auto-start untuk Android (RNDIS, Hotspot, SIM, Chroot Services)
+          cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
+          #!/system/bin/sh
+          # Autostart Headless Services untuk Vince
+          
+          # 1. Paksa USB RNDIS & ADB
+          setprop sys.usb.config rndis,adb
+          
+          # 2. Nyalakan Hotspot Wi-Fi "OpenWrt-Vince"
+          service call connectivity 33 i32 1 s16 "OpenWrt-Vince" s16 "" i32 0
+          
+          # 3. Setting TTL 64 untuk Modem SIM
+          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64
+          
+          # 4. Inisialisasi Chroot Environment untuk Tools
+          CHROOT_DIR="/data/linux_tools"
+          if [ -d "$CHROOT_DIR" ]; then
+            mount -o bind /dev $CHROOT_DIR/dev
+            mount -o bind /dev/pts $CHROOT_DIR/dev/pts
+            mount -t proc proc $CHROOT_DIR/proc
+            mount -t sysfs sys $CHROOT_DIR/sys
+            
+            # Start Aria2, Wireguard, Tmux, Vnstat, dll
+            chroot $CHROOT_DIR /usr/bin/aria2c --enable-rpc --rpc-listen-all=true &
+            chroot $CHROOT_DIR /usr/bin/tmux new-session -d -s main_session
+          fi
+          SCRIPT
+          chmod +x output/chroot_bundle/init_headless.sh
+
+      - name: Extract Boot Image for Fastboot
+        run: |
+          cp base_rom/extracted/boot.img output/boot.img
+          echo "Boot Image Ready!"
+
+      - name: Upload Output Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vince-barebone-fastboot
+          path: output/
