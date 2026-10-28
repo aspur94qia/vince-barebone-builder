@@ -84,28 +84,30 @@ jobs:
           SCRIPT
           chmod +x custom-files/etc/uci-defaults/99-vince-init
 
-      - name: Build Image via Official OpenWrt ImageBuilder Container
+      - name: Build Image via Official OpenWrt Docker ImageBuilder
         run: |
-          # Menggunakan tag versi v23.05.5 yang valid di Docker Hub
+          mkdir -p output-builder
+          
+          # Menggunakan Image official Docker OpenWrt khusus target armvirt-64
           docker run --rm \
             -v "$(pwd)/custom-files:/builder/files" \
             -v "$(pwd)/output-builder:/builder/bin" \
-            openwrt/imagebuilder:v23.05.5 armvirt-64 \
-            PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
+            openwrt/imagebuilder:armvirt-64-v23.05.5 \
+            make image PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
 
       - name: Pack to Android boot.img
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find output-builder/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
-          FIND_INITRD=$(find output-builder/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
+          FIND_KERNEL=$(find output-builder/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find output-builder/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
-            find output-builder/targets/ -type f
+            find output-builder/ -type f
             exit 1
           fi
 
