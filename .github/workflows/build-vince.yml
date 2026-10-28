@@ -1,4 +1,4 @@
-name: Build Vince Headless Complete Suite
+name: Build Vince Headless
 
 on:
   push:
@@ -12,141 +12,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Build Tools
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
 
-      - name: Download Native Tools
-        run: |
-          mkdir -p /tmp/native_tools
-          cd /tmp/native_tools
-          wget -q -O busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a || true
-          wget -q -O hostapd https://raw.githubusercontent.com/nethunteros/android_external_hostapd/master/hostapd || true
-          wget -q -O dnsmasq https://raw.githubusercontent.com/eugr/dnsmasq-android/master/binary/arm64-v8a/dnsmasq || true
-          wget -q -O dropbear https://raw.githubusercontent.com/mchome/dropbear-android/master/bin/arm64-v8a/dropbear || true
-          wget -q -O iw https://raw.githubusercontent.com/nethunteros/android_external_iw/master/iw || true
-          wget -q -O tcpdump https://raw.githubusercontent.com/nethunteros/android_external_tcpdump/master/tcpdump || true
-          wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
-          chmod +x *
-
-      - name: Process ROM
-        run: |
-          mkdir -p work/extracted output
-          ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
-          aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
-          unzip work/rom.zip -d work/extracted/
-          
-          cd work/extracted
-          brotli -d system.new.dat.br -o system.new.dat
-          wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
-          python3 sdat2img.py system.transfer.list system.new.dat system.img
-          mkdir sys_mnt
-          sudo mount -o loop system.img sys_mnt/
-
-          sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
-          
-          SYS_TARGET="sys_mnt/system"
-          if [ -d "sys_mnt/system/system" ]; then
-            SYS_TARGET="sys_mnt/system/system"
-          fi
-
-          sudo mkdir -p "$SYS_TARGET/bin" "$SYS_TARGET/etc/router" "$SYS_TARGET/web_ui" "$SYS_TARGET/etc/init"
-
-          sudo cp /tmp/native_tools/busybox "$SYS_TARGET/bin/busybox"
-          sudo cp /tmp/native_tools/hostapd "$SYS_TARGET/bin/hostapd"
-          sudo cp /tmp/native_tools/dnsmasq "$SYS_TARGET/bin/dnsmasq"
-          sudo cp /tmp/native_tools/dropbear "$SYS_TARGET/bin/dropbear"
-          sudo cp /tmp/native_tools/iw "$SYS_TARGET/bin/iw"
-          sudo cp /tmp/native_tools/tcpdump "$SYS_TARGET/bin/tcpdump"
-          sudo cp /tmp/native_tools/iftop "$SYS_TARGET/bin/iftop"
-          sudo chmod 755 "$SYS_TARGET/bin/"*
-
-          sudo "$SYS_TARGET/bin/busybox" --install -s "$SYS_TARGET/bin" 2>/dev/null || true
-
-          sudo tee "$SYS_TARGET/etc/router/dnsmasq.conf" > /dev/null << 'CONF'
-interface=wlan0
-dhcp-range=192.168.4.50,192.168.4.150,12h
-dhcp-option=3,192.168.4.1
-dhcp-option=6,8.8.8.8,1.1.1.1
-CONF
-
-          sudo tee "$SYS_TARGET/etc/router/hostapd.conf" > /dev/null << 'HCONF'
-interface=wlan0
-driver=nl80211
-ssid=Vince_Beast_AP
-hw_mode=g
-channel=6
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase=vincegateway
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-HCONF
-
-          sudo tee "$SYS_TARGET/web_ui/index.html" > /dev/null << 'HTML'
-<!DOCTYPE html>
-<html>
-<head><title>Vince Headless Beast</title></head>
-<body style="background:#0f172a;color:#fff;font-family:sans-serif;padding:20px;">
-<h2>Vince Gateway Active</h2><p>SSID: Vince_Beast_AP</p><p>Bluetooth Audio: Active</p><p>TTL: 64</p>
-</body>
-</html>
-HTML
-
-          sudo tee "$SYS_TARGET/web_ui/server.py" > /dev/null << 'PY'
-import http.server, socketserver, os
-PORT = 80
-DIR = os.path.dirname(os.path.abspath(__file__))
-class H(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *a, **kw): super().__init__(*a, directory=DIR, **kw)
-with socketserver.TCPServer(("", PORT), H) as httpd: httpd.serve_forever()
-PY
-
-          sudo tee "$SYS_TARGET/bin/vince_init.sh" > /dev/null << 'SCRIPT'
-#!/system/bin/sh
-sleep 8
-setenforce 0 2>/dev/null || true
-echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
-mkswap /dev/block/zram0 2>/dev/null || true
-swapon /dev/block/zram0 2>/dev/null || true
-echo 1 > /proc/sys/net/ipv4/ip_forward
-svc data enable
-sleep 2
-iptables -t nat -F 2>/dev/null || true
-iptables -t mangle -F 2>/dev/null || true
-iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
-iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
-svc wifi enable 2>/dev/null || true
-cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || ifconfig wlan0 up 2>/dev/null || true
-svc bluetooth enable 2>/dev/null || true
-sleep 2
-bluetoothctl power on 2>/dev/null || true
-bluetoothctl discoverable on 2>/dev/null || true
-dropbear -R -p 22 2>/dev/null || true
-python3 /system/web_ui/server.py &
-SCRIPT
-          sudo chmod 755 "$SYS_TARGET/bin/vince_init.sh"
-
-          sudo tee "$SYS_TARGET/etc/init/vince_gateway.rc" > /dev/null << 'INITRC'
-on property:sys.boot_completed=1
-    exec u:r:init:s0 root root -- /system/bin/vince_init.sh
-INITRC
-          sudo chmod 644 "$SYS_TARGET/etc/init/vince_gateway.rc"
-
-          sudo umount sys_mnt/
-          img2simg system.img system_sparse.img
-          wget -q https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py
-          python3 img2sdat.py system_sparse.img -o . -v 4
-          brotli -q 11 system.new.dat -o system.new.dat.br
-          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat.py
-          
-          zip -9 -r ../../output/vince-mini-headless.zip boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
+      - name: Execute ROM Builder Script
+        run: ./scripts/build.sh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
