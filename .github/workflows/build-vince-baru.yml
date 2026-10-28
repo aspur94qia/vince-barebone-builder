@@ -1,4 +1,4 @@
-name: OpenWrt Hybrid Vince (Android Kernel + OpenWrt Rootfs)
+name: OpenWrt Vince - Jalur 1 Android Kernel Wrapper
 
 on:
   push:
@@ -25,16 +25,11 @@ jobs:
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
 
-      - name: Fetch Real Qualcomm MSM8953 Stock Kernel & DTB for Vince
+      - name: Download Physical Stock MSM8953 Kernel
         run: |
-          mkdir -p kernel_vince
-          # Download stock MSM8953 boot image compiled for Android/Linux
-          wget -q -O kernel_vince/stock_vince_boot.img https://github.com/aspur94qia/vince_unitrix/releases/download/v1.0/boot.img || true
-          
-          # Unpack stock Android kernel jika file terunduh
-          if [ -f kernel_vince/stock_vince_boot.img ]; then
-            python3 -c "import urllib.request; print('Stock Kernel Downloaded')"
-          fi
+          mkdir -p stock_kernel
+          # Download boot.img fisik MSM8953 Vince
+          wget -q -O stock_kernel/boot.img https://github.com/aspur94qia/vince_unitrix/releases/download/v1.0/boot.img || true
 
       - name: Prepare Custom Files, Extra IPKs & Firmware
         run: |
@@ -49,23 +44,23 @@ jobs:
           mkdir -p files/etc/crontabs
           mkdir -p files/root/extra_packages
 
-          # Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
+          # 1. Download Firmware Wi-Fi & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
-          # Download Extra IPKs
+          # 2. Download Extra IPKs
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
 
-          # Bluetooth Audio Receiver Conf
+          # 3. Konfigurasi Bluetooth Audio Receiver
           echo "[General]" > files/etc/bluetooth/main.conf
           echo "Name = OpenWrt Vince Audio Receiver" >> files/etc/bluetooth/main.conf
           echo "Class = 0x20041C" >> files/etc/bluetooth/main.conf
           echo "DiscoverableTimeout = 0" >> files/etc/bluetooth/main.conf
           echo "PairableTimeout = 0" >> files/etc/bluetooth/main.conf
 
-          # Hotspot Configuration
+          # 4. Preset Hotspot Wi-Fi
           echo "config wifi-device 'radio0'" > files/etc/config/wireless
           echo "    option type 'mac80211'" >> files/etc/config/wireless
           echo "    option channel '6'" >> files/etc/config/wireless
@@ -81,7 +76,7 @@ jobs:
           echo "    option ssid 'OpenWrt-Vince'" >> files/etc/config/wireless
           echo "    option encryption 'none'" >> files/etc/config/wireless
 
-          # First Boot Init Script
+          # 5. Skrip First Boot (Paksa USB RNDIS, Auto SIM, BT Receiver, Audio Switcher)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
@@ -89,7 +84,7 @@ jobs:
             opkg install /root/extra_packages/*.ipk || true
           fi
           
-          # Force load USB RNDIS Gadget
+          # Paksa USB RNDIS Gadget Aktif di Kernel Qualcomm
           echo rndis > /sys/class/android_usb/android0/functions || true
           echo 1 > /sys/class/android_usb/android0/enable || true
           
@@ -150,7 +145,7 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Full Image
+      - name: Build Rootfs Image
         run: |
           cd imagebuilder
           sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=512/' .config || echo "CONFIG_TARGET_ROOTFS_PARTSIZE=512" >> .config
@@ -159,15 +154,28 @@ jobs:
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
-      - name: Pack to Android boot.img
+      - name: Inject OpenWrt Rootfs into Physical MSM8953 Kernel
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
           
+          if [ -f stock_kernel/boot.img ]; then
+            echo "Menggunakan Kernel Fisik MSM8953 Vince..."
+            mkdir -p unpacked
+            unpack_bootimg --boot_img stock_kernel/boot.img --out unpacked || true
+            
+            if [ -f unpacked/kernel ]; then
+              KERNEL_PATH="unpacked/kernel"
+            else
+              KERNEL_PATH=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
+            fi
+          else
+            KERNEL_PATH=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
+          fi
+
           mkbootimg \
-            --kernel "$FIND_KERNEL" \
+            --kernel "$KERNEL_PATH" \
             --ramdisk "$FIND_INITRD" \
             --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3 androidboot.emmc=true" \
             --base 0x80000000 \
