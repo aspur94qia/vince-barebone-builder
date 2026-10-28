@@ -1,4 +1,4 @@
-name: OpenWrt Image Builder (Fast Build)
+name: OpenWrt ImageBuilder Vince (Fast Build 22.03)
 
 on:
   push:
@@ -18,11 +18,11 @@ jobs:
           sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Download & Extract ImageBuilder
+      - name: Download & Extract ImageBuilder 22.03.7
         run: |
-          # Menggunakan URL ImageBuilder resmi 23.05.4 untuk target armvirt/64
-          IB_URL="https://downloads.openwrt.org/releases/23.05.4/targets/armvirt/64/openwrt-imagebuilder-23.05.4-armvirt-64.Linux-x86_64.tar.xz"
-          wget -q "$IB_URL" -O ib.tar.xz || wget -q "https://downloads.openwrt.org/snapshots/targets/armvirt/64/openwrt-imagebuilder-armvirt-64.Linux-x86_64.tar.xz" -O ib.tar.xz
+          # Download ImageBuilder resmi versi 22.03.7 target armvirt/64
+          IB_URL="https://archive.openwrt.org/releases/22.03.7/targets/armvirt/64/openwrt-imagebuilder-22.03.7-armvirt-64.Linux-x86_64.tar.xz"
+          wget -q "$IB_URL" -O ib.tar.xz
           
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
@@ -99,8 +99,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Jalankan make image untuk merakit rootfs & kernel secara instan
-          make image PROFILE="generic" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
+          # Rakit rootfs & kernel secara instan (< 2 menit)
+          make image PROFILE="default" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
