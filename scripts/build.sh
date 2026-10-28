@@ -34,6 +34,7 @@ sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
 
+# Deteksi path system yang benar (handle nested /system/system)
 SYS_TARGET="sys_mnt/system"
 if [ -d "sys_mnt/system/system" ]; then
   SYS_TARGET="sys_mnt/system/system"
@@ -41,7 +42,7 @@ fi
 
 sudo mkdir -p "$SYS_TARGET/bin" "$SYS_TARGET/etc/router" "$SYS_TARGET/web_ui" "$SYS_TARGET/etc/init"
 
-# Copy semua tools
+# Copy semua tools ke target yang valid
 sudo cp /tmp/native_tools/* "$SYS_TARGET/bin/"
 sudo chmod 755 "$SYS_TARGET/bin/"*
 sudo "$SYS_TARGET/bin/busybox" --install -s "$SYS_TARGET/bin" 2>/dev/null || true
