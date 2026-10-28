@@ -1,4 +1,4 @@
-name: Build Vince Full 20+ Tools Headless Suite
+name: Build Vince Headless Complete Suite
 
 on:
   push:
@@ -17,13 +17,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
 
-      - name: Fetch All Native Android ARM64 Binaries Suite
+      - name: Download, Strip & Inject Complete 20+ Tools Suite
         run: |
-          mkdir -p /tmp/native_tools
-          cd /tmp/native_tools
-          echo "Fetching All 20+ Native ARM64 Binaries..."
+          mkdir -p work output /tmp/native_tools
+          echo "Fetching Native ARM64 Binaries..."
           
-          # Core Tools
+          cd /tmp/native_tools
           wget -q -O busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a || true
           wget -q -O hostapd https://raw.githubusercontent.com/nethunteros/android_external_hostapd/master/hostapd || true
           wget -q -O dnsmasq https://raw.githubusercontent.com/eugr/dnsmasq-android/master/binary/arm64-v8a/dnsmasq || true
@@ -31,12 +30,9 @@ jobs:
           wget -q -O iw https://raw.githubusercontent.com/nethunteros/android_external_iw/master/iw || true
           wget -q -O tcpdump https://raw.githubusercontent.com/nethunteros/android_external_tcpdump/master/tcpdump || true
           wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
-          
           chmod +x *
 
-      - name: Download, Strip & Inject All 20+ Tools
-        run: |
-          mkdir -p work output
+          cd /home/runner/work/vince-barebone-builder/vince-barebone-builder
           echo "Downloading LineageOS..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
@@ -51,7 +47,7 @@ jobs:
           mkdir sys_mnt
           sudo mount -o loop system.img sys_mnt/
           
-          # 1. BABAT GUI & MEDIA VISUAL (TETAP KERDIL)
+          # 1. BABAT GUI & MEDIA (UKURAN KERDIL)
           sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
           sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
           sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
@@ -66,11 +62,17 @@ jobs:
 
           sudo mkdir -p "$SYS_TARGET/bin" "$SYS_TARGET/etc/router" "$SYS_TARGET/web_ui" "$SYS_TARGET/etc/init"
 
-          # 3. SUNTIK NATIVE BINARY TOOLS (busybox, hostapd, dnsmasq, dropbear, iw, tcpdump, iftop)
-          sudo cp /tmp/native_tools/* "$SYS_TARGET/bin/"
+          # 3. SUNTIK ALL NATIVE TOOLS
+          sudo cp /tmp/native_tools/busybox "$SYS_TARGET/bin/busybox"
+          sudo cp /tmp/native_tools/hostapd "$SYS_TARGET/bin/hostapd"
+          sudo cp /tmp/native_tools/dnsmasq "$SYS_TARGET/bin/dnsmasq"
+          sudo cp /tmp/native_tools/dropbear "$SYS_TARGET/bin/dropbear"
+          sudo cp /tmp/native_tools/iw "$SYS_TARGET/bin/iw"
+          sudo cp /tmp/native_tools/tcpdump "$SYS_TARGET/bin/tcpdump"
+          sudo cp /tmp/native_tools/iftop "$SYS_TARGET/bin/iftop"
           sudo chmod 755 "$SYS_TARGET/bin/"*
 
-          # Symlink Busybox buat ngisi 20+ tools Linux CLI (iptables, ip, tc, ifconfig, route, htop, curl, wget, dll)
+          # Install Busybox Symlinks (iptables, ip, tc, route, ifconfig, htop, curl, wget, dll)
           sudo "$SYS_TARGET/bin/busybox" --install -s "$SYS_TARGET/bin" 2>/dev/null || true
 
           # 4. CONFIG FILES (DNSMASQ & HOSTAPD)
@@ -95,7 +97,7 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 HCONF
 
-          # 5. WEB UI DASHBOARD SERVER
+          # 5. WEB UI DASHBOARD
           sudo tee "$SYS_TARGET/web_ui/index.html" > /dev/null << 'HTML'
 <!DOCTYPE html>
 <html>
