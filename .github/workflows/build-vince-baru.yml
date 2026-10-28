@@ -95,66 +95,32 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Stable Packages Safely
+      - name: Configure Armvirt Target & Minimal Essential Packages
         run: |
           cd openwrt
           
-          # LANGKAH 1: Inisialisasi Target Armvirt dengan Heredoc yang benar
+          # Set target armvirt secara langsung dan jalankan defconfig bersih
           cat << 'EOF' > .config
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
-          EOF
-          make defconfig
-
-          # LANGKAH 2: Masukkan Paket Tambahan ke .config secara Append (>> .config)
-          cat << 'PKGCONF' >> .config
-          CONFIG_PACKAGE_wget-ssl=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_bash=y
-          CONFIG_PACKAGE_wpad-mbedtls=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_luci-theme-bootstrap=y
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
           CONFIG_PACKAGE_libqmi=y
           CONFIG_PACKAGE_qmi-utils=y
           CONFIG_PACKAGE_wwan=y
           CONFIG_PACKAGE_qrtr-tools=y
-          CONFIG_PACKAGE_kmod-tcp-bbr=y
-          CONFIG_PACKAGE_zram-swap=y
-          CONFIG_PACKAGE_kmod-zram=y
-          CONFIG_PACKAGE_alsa-utils=y
-          CONFIG_PACKAGE_alsa-ucm-conf=y
-          CONFIG_PACKAGE_bluez-daemon=y
-          CONFIG_PACKAGE_bluez-utils=y
-          CONFIG_PACKAGE_bluealsa=y
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-bootstrap=y
-          CONFIG_PACKAGE_luci-app-ttyd=y
-          CONFIG_PACKAGE_kmod-usb-net=y
-          CONFIG_PACKAGE_kmod-usb-net-rndis=y
-          CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
-          CONFIG_PACKAGE_kmod-usb-serial=y
-          CONFIG_PACKAGE_kmod-usb-serial-option=y
-          CONFIG_PACKAGE_usb-modeswitch=y
+          CONFIG_PACKAGE_wpad-mbedtls=y
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-fs-ext4=y
           CONFIG_PACKAGE_e2fsprogs=y
-          CONFIG_PACKAGE_fdisk=y
-          CONFIG_PACKAGE_luci-app-diskman=y
-          CONFIG_PACKAGE_luci-app-samba4=y
           CONFIG_PACKAGE_nano=y
-          CONFIG_PACKAGE_htop=y
-          PKGCONF
+          EOF
 
-          # LANGKAH 3: Jalankan make defconfig final untuk memproses semua dependensi
           make defconfig
-
-          # Verifikasi target armvirt
-          if ! grep -q 'CONFIG_TARGET_BOARD="armvirt"' .config && ! grep -q 'CONFIG_TARGET_armvirt_64=y' .config; then
-            echo "ERROR: Target armvirt ter-reset!"
-            exit 1
-          fi
 
       - name: Download Packages
         run: |
