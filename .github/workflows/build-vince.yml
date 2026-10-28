@@ -17,14 +17,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
           
-          # Tambah arsitektur arm64 buat download busybox-static asli Debian/Ubuntu
+          # Tambah arsitektur arm64 & download busybox-static asli Ubuntu/Debian
           sudo dpkg --add-architecture arm64
           sudo apt-get update
           mkdir -p /tmp/busybox_pkg
           cd /tmp/busybox_pkg
           apt-get download busybox-static:arm64
-          ar x busybox-static*.deb
-          tar -xf data.tar.xz
+          
+          # Ekstrak aman tanpa pusing format kompresi
+          dpkg-deb -x busybox-static*.deb .
 
       - name: Download LineageOS Vince & Embed All Beast Tools
         run: |
@@ -37,11 +38,11 @@ jobs:
           # --- 1. EMBED BUSYBOX & TOOLS ROUTER ---
           echo "Embedding ARM64 Static Tools..."
           
-          # A. Salin BusyBox ARM64 yang di-extract dari paket resmi Debian/Ubuntu
+          # Salin BusyBox ARM64 hasil ekstrak dpkg-deb
           cp /tmp/busybox_pkg/bin/busybox work/vince_beast/system/bin/busybox
           chmod +x work/vince_beast/system/bin/busybox
 
-          # B. Dnsmasq, Hostapd, Dropbear (Jika URL eksternal gagal, fallback gunakan internal binari)
+          # Dnsmasq, Hostapd, Dropbear (Gunakan fallback internal jika URL eksternal bermasalah)
           wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
           chmod +x work/vince_beast/system/bin/dnsmasq || true
 
