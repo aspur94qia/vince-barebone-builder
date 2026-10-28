@@ -1,4 +1,4 @@
-name: Vince Android Barebone + Linux Chroot Tools
+name: Vince Android Base + Alpine Chroot Tools
 
 on:
   push:
@@ -15,72 +15,63 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential python3 python3-pip android-sdk-libsparse-utils android-sdk-platform-tools-common abootimg mkbootimg cpio gzip
+          sudo apt-get install -y wget curl unzip aria2 android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full
 
-      - name: Build Headless Ramdisk & Init Scripts
+      - name: Download LineageOS 23.2 Vince ROM & Alpine Rootfs
         run: |
-          mkdir -p ramdisk/sbin output/chroot_bundle
-          
-          # 1. Buat skrip init minimal untuk ramdisk
-          cat << 'INITSCRIPT' > ramdisk/init
-          #!/split_init
-          export PATH=/sbin:/system/bin:/system/xbin
-          mount -t proc proc /proc
-          mount -t sysfs sysfs /sys
+          mkdir -p work output/chroot_bundle
+          echo "Downloading LineageOS 23.2 Vince..."
+          ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
+          aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
+          unzip work/lineage.zip boot.img -d output/
 
-          # Paksa USB RNDIS + ADB
-          echo rndis,adb > /sys/class/android_usb/android0/enable || true
+          echo "Downloading Alpine Linux Rootfs (ARM64)..."
+          ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
+          aria2c -x16 -s16 -o work/alpine.tar.gz "$ALPINE_URL"
+          mkdir -p output/chroot_bundle/rootfs
+          tar -xzf work/alpine.tar.gz -C output/chroot_bundle/rootfs
 
-          # Jalankan autostart headless
-          /init_headless.sh &
-
-          exec /system/bin/init
-          INITSCRIPT
-          chmod +x ramdisk/init
-
-          # 2. Buat skrip autostart chroot & tools
-          cat << 'SCRIPT' > ramdisk/init_headless.sh
+      - name: Setup Alpine Chroot Services & Tools Installer
+        run: |
+          # 1. Skrip Autostart Headless Android (Suntik USB RNDIS & Wi-Fi AP)
+          cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
           #!/system/bin/sh
+          # Enable USB RNDIS & ADB
           setprop sys.usb.config rndis,adb
+          
+          # Enable Wi-Fi Hotspot "OpenWrt-Vince"
+          service call connectivity 33 i32 1 s16 "OpenWrt-Vince" s16 "" i32 0
+          
+          # TTL Lock 64 for SIM Card
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           
-          CHROOT_DIR="/data/linux_tools"
+          # Mount & Start Alpine Chroot Tools
+          CHROOT_DIR="/data/local/alpine"
           if [ -d "$CHROOT_DIR" ]; then
             mount -o bind /dev $CHROOT_DIR/dev
             mount -o bind /dev/pts $CHROOT_DIR/dev/pts
             mount -t proc proc $CHROOT_DIR/proc
             mount -t sysfs sys $CHROOT_DIR/sys
             
-            chroot $CHROOT_DIR /usr/bin/aria2c --enable-rpc --rpc-listen-all=true &
-            chroot $CHROOT_DIR /usr/bin/tmux new-session -d -s main_session
+            # Exec Startup Services inside Alpine
+            chroot $CHROOT_DIR /bin/sh /etc/init_tools.sh &
           fi
           SCRIPT
-          chmod +x ramdisk/init_headless.sh
+          chmod +x output/chroot_bundle/init_headless.sh
 
-          # Pack ramdisk ke cpio.gz
-          cd ramdisk
-          find . | cpio -o -H newc | gzip -9 > ../ramdisk.cpio.gz
-          cd ..
-
-      - name: Compile Dummy MSM8953 Kernel & Pack Boot Image
-        run: |
-          # Buat file kernel placeholder jika tidak ada kompilasi kernel mentah
-          dd if=/dev/zero of=kernel_dummy bs=1M count=8
+          # 2. Skrip Internal Tools di dalam Alpine Linux
+          cat << 'TOOLS' > output/chroot_bundle/rootfs/etc/init_tools.sh
+          #!/bin/sh
+          # Install & Run Tools inside Alpine Chroot
+          apk add --no-network aria2 tmux screen nmap tcpdump vnstat wireguard-tools modemmanager bluez 2>/dev/null || true
           
-          mkbootimg \
-            --kernel kernel_dummy \
-            --ramdisk ramdisk.cpio.gz \
-            --cmdline "console=ttyMSM0,115200n8 androidboot.hardware=qcom user_debug=31 ehci-hcd.park=3 androidboot.emmc=true" \
-            --base 0x80000000 \
-            --ramdisk_offset 0x01000000 \
-            --tags_offset 0x00000100 \
-            --pagesize 2048 \
-            --output output/boot.img
-
-          cp ramdisk/init_headless.sh output/chroot_bundle/
+          aria2c --enable-rpc --rpc-listen-all=true &
+          tmux new-session -d -s vince_main
+          TOOLS
+          chmod +x output/chroot_bundle/rootfs/etc/init_tools.sh
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vince-barebone-fastboot
+          name: vince-android-alpine-fastboot
           path: output/
