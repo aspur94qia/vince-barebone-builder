@@ -33,38 +33,26 @@ jobs:
 
       - name: Setup Alpine Chroot Services & Tools Installer
         run: |
-          # 1. Skrip Autostart Headless Android (Suntik USB RNDIS & Wi-Fi AP)
           cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
           #!/system/bin/sh
-          # Enable USB RNDIS & ADB
           setprop sys.usb.config rndis,adb
-          
-          # Enable Wi-Fi Hotspot "OpenWrt-Vince"
           service call connectivity 33 i32 1 s16 "OpenWrt-Vince" s16 "" i32 0
-          
-          # TTL Lock 64 for SIM Card
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           
-          # Mount & Start Alpine Chroot Tools
           CHROOT_DIR="/data/local/alpine"
           if [ -d "$CHROOT_DIR" ]; then
             mount -o bind /dev $CHROOT_DIR/dev
             mount -o bind /dev/pts $CHROOT_DIR/dev/pts
             mount -t proc proc $CHROOT_DIR/proc
             mount -t sysfs sys $CHROOT_DIR/sys
-            
-            # Exec Startup Services inside Alpine
             chroot $CHROOT_DIR /bin/sh /etc/init_tools.sh &
           fi
           SCRIPT
           chmod +x output/chroot_bundle/init_headless.sh
 
-          # 2. Skrip Internal Tools di dalam Alpine Linux
           cat << 'TOOLS' > output/chroot_bundle/rootfs/etc/init_tools.sh
           #!/bin/sh
-          # Install & Run Tools inside Alpine Chroot
           apk add --no-network aria2 tmux screen nmap tcpdump vnstat wireguard-tools modemmanager bluez 2>/dev/null || true
-          
           aria2c --enable-rpc --rpc-listen-all=true &
           tmux new-session -d -s vince_main
           TOOLS
