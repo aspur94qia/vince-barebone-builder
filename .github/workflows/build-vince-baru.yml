@@ -1,4 +1,4 @@
-name: Fresh OpenWrt Vince Build (Barebone Stable)
+name: OpenWrt Image Builder (Fast Build)
 
 on:
   push:
@@ -8,40 +8,45 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:22.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Environment Inside Container
+      - name: Setup Environment & Dependencies
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt 23.05 Stable & Update Feeds
+      - name: Download & Extract OpenWrt Image Builder
         run: |
-          git clone --depth 1 -b openwrt-23.05 https://git.openwrt.org/openwrt/openwrt.git openwrt
-          cd openwrt
+          # Download Image Builder resmi untuk target armvirt/64 versi 23.05
+          ARCH_URL="https://downloads.openwrt.org/releases/23.05.5/targets/armvirt/64/openwrt-imagebuilder-23.05.5-armvirt-64.Linux-x86_64.tar.xz"
+          wget -q "$ARCH_URL" -O imagebuilder.tar.xz
+          tar -xf imagebuilder.tar.xz
+          mv openwrt-imagebuilder-* imagebuilder
+          cd imagebuilder
           
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          # Bersihkan package bawaan yang tidak diperlukan jika ada
+          rm -rf files || true
 
-      - name: Inject Firmware, Auto Configs, Auto TTL & Init Scripts
+      - name: Inject Firmware, Custom Files & Init Scripts
         run: |
-          cd openwrt
+          cd imagebuilder
           
-          # 1. Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
+          # 1. Buat direktori files untuk disuntikkan ke dalam image
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
+          mkdir -p files/etc/bluetooth
+          mkdir -p files/etc/uci-defaults
+          mkdir -p files/etc/crontabs
+
+          # 2. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
-          # 2. Konfigurasi Bluetooth Speaker
-          mkdir -p files/etc/bluetooth
+          # 3. Konfigurasi Bluetooth Speaker
           cat << 'BTCONF' > files/etc/bluetooth/main.conf
           [General]
           Name = OpenWrt Vince Speaker
@@ -50,8 +55,7 @@ jobs:
           PairableTimeout = 0
           BTCONF
 
-          # 3. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
-          mkdir -p files/etc/uci-defaults
+          # 4. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
@@ -72,7 +76,6 @@ jobs:
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
           # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
-          mkdir -p files/etc/crontabs
           echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
           
           # Start Bluetooth Qualcomm & Auto Discoverable
@@ -95,59 +98,29 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Minimal Essential Packages
+      - name: Build Image using Make
         run: |
-          cd openwrt
+          cd imagebuilder
           
-          cat << 'EOF' > .config
-          CONFIG_TARGET_armvirt=y
-          CONFIG_TARGET_armvirt_64=y
-          CONFIG_TARGET_armvirt_64_Default=y
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-bootstrap=y
-          CONFIG_PACKAGE_modemmanager=y
-          CONFIG_PACKAGE_luci-proto-modemmanager=y
-          CONFIG_PACKAGE_libqmi=y
-          CONFIG_PACKAGE_qmi-utils=y
-          CONFIG_PACKAGE_wwan=y
-          CONFIG_PACKAGE_qrtr-tools=y
-          CONFIG_PACKAGE_wpad-mbedtls=y
-          CONFIG_PACKAGE_block-mount=y
-          CONFIG_PACKAGE_kmod-fs-ext4=y
-          CONFIG_PACKAGE_e2fsprogs=y
-          CONFIG_PACKAGE_nano=y
-          EOF
-
-          make defconfig
-
-      - name: Download Packages
-        run: |
-          cd openwrt
-          make download -j$(nproc)
-
-      - name: Compile OpenWrt
-        run: |
-          cd openwrt
-          export FORCE_UNSAFE_CONFIGURE=1
-          make tools/tar/clean || true
-          make -j1 V=s tools/tar/compile FORCE_UNSAFE_CONFIGURE=1 || true
-          make -j$(nproc) FORCE_UNSAFE_CONFIGURE=1 || make -j1 V=s FORCE_UNSAFE_CONFIGURE=1
+          # Daftar paket esensial (Modem, Wi-Fi, LuCI, dan Utilitas) yang digabung instan
+          PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
+          
+          # Jalankan make image (proses ini sangat cepat, biasanya < 2 menit)
+          make image PROFILE="generic" PACKAGES="$PACKAGES"
 
       - name: Pack to Android boot.img
         run: |
           mkdir -p output
           
-          # DIPERBAIKI: Menyesuaikan jalur direktori armvirt/64/
-          FIND_KERNEL=$(find openwrt/bin/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
-          FIND_INITRD=$(find openwrt/bin/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
+          FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
+          FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
-            find openwrt/bin/targets/ -type f
+            find imagebuilder/bin/targets/ -type f
             exit 1
           fi
 
