@@ -20,7 +20,6 @@ jobs:
 
       - name: Download & Extract ImageBuilder 22.03.7
         run: |
-          # Download ImageBuilder resmi versi 22.03.7 target armvirt/64
           IB_URL="https://archive.openwrt.org/releases/22.03.7/targets/armvirt/64/openwrt-imagebuilder-22.03.7-armvirt-64.Linux-x86_64.tar.xz"
           wget -q "$IB_URL" -O ib.tar.xz
           
@@ -30,6 +29,9 @@ jobs:
       - name: Prepare Custom Files & Firmware
         run: |
           cd imagebuilder
+          
+          # Buat folder tmp agar make tidak error
+          mkdir -p tmp
           
           # 1. Buat direktori files untuk disuntikkan ke dalam image
           mkdir -p files/lib/firmware/qcom
@@ -99,8 +101,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Rakit rootfs & kernel secara instan (< 2 menit)
-          make image PROFILE="default" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
+          # Menggunakan PROFILE="generic" yang valid untuk armvirt/64
+          make image PROFILE="generic" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
