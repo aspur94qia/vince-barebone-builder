@@ -1,4 +1,4 @@
-name: Build Vince Ultra-Lite ROM + Tools Suite
+name: Build Vince Headless Stable
 
 on:
   push:
@@ -12,21 +12,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Unpack & Repack Tools
+      - name: Install Build Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y brotli android-sdk-libsparse-utils p7zip-full python3-pip zip aria2 wget curl
-          pip3 install backports.lzma protobuf
+          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
 
-          # Download ARM64 Static Busybox
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          mkdir -p /tmp/busybox_pkg
-          cd /tmp/busybox_pkg
-          apt-get download busybox-static:arm64
-          dpkg-deb -x busybox-static*.deb .
-
-      - name: Download, Unpack, Strip & Inject Tools
+      - name: Download, Unpack, Strip & Repack
         run: |
           mkdir -p work output
           echo "Downloading LineageOS..."
@@ -36,137 +27,62 @@ jobs:
           unzip work/rom.zip -d work/extracted/
           cd work/extracted
 
-          if [ -f system.new.dat.br ]; then
-            brotli -d system.new.dat.br -o system.new.dat
-            python3 -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py', 'sdat2img.py')"
-            python3 sdat2img.py system.transfer.list system.new.dat system.img
-            mkdir sys_mnt
-            sudo mount -o loop system.img sys_mnt/
-            
-            # --- 1. BABAT HABIS SYSTEM (GUI & MEDIA) ---
-            sudo rm -rf sys_mnt/system/priv-app/SystemUI
-            sudo rm -rf sys_mnt/system/priv-app/Trebuchet
-            sudo rm -rf sys_mnt/system/app/*
-            sudo rm -rf sys_mnt/system/media/audio/*
-            sudo rm -rf sys_mnt/system/fonts/*
-            
-            # --- 2. EMBED ROUTER TOOLS & UTILITIES ---
-            sudo mkdir -p sys_mnt/system/bin sys_mnt/system/etc/router sys_mnt/system/web_ui sys_mnt/system/etc/init
+          # 1. Unpack Brotli system.new.dat.br
+          brotli -d system.new.dat.br -o system.new.dat
+          python3 -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py', 'sdat2img.py')"
+          python3 sdat2img.py system.transfer.list system.new.dat system.img
+          
+          mkdir sys_mnt
+          sudo mount -o loop system.img sys_mnt/
+          
+          # 2. BABAT GUI & BLOATWARE VISUAL
+          sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
+          
+          # 3. EMBED TOOLS & AUTOSTART SCRIPT
+          sudo mkdir -p sys_mnt/system/bin sys_mnt/system/etc/router sys_mnt/system/web_ui sys_mnt/system/etc/init
 
-            BUSYBOX_BIN=$(find /tmp/busybox_pkg -name "busybox" -type f | head -n 1)
-            sudo cp "$BUSYBOX_BIN" sys_mnt/system/bin/busybox
-            sudo chmod +x sys_mnt/system/bin/busybox
+          sudo wget -O sys_mnt/system/bin/busybox https://bin.equinox.io/c/bNy82THRRaY/busybox-static-arm64.zip || true
+          sudo wget -O sys_mnt/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
+          sudo wget -O sys_mnt/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd || true
+          sudo chmod +x sys_mnt/system/bin/* || true
 
-            sudo wget -O sys_mnt/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
-            sudo chmod +x sys_mnt/system/bin/dnsmasq || true
-
-            sudo wget -O sys_mnt/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd || true
-            sudo chmod +x sys_mnt/system/bin/hostapd || true
-
-            sudo wget -O sys_mnt/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear || true
-            sudo chmod +x sys_mnt/system/bin/dropbear || true
-
-            # Config Router
-            sudo bash -c 'cat << "CONF" > sys_mnt/system/etc/router/dnsmasq.conf
-interface=wlan0
-dhcp-range=192.168.4.50,192.168.4.150,12h
-dhcp-option=3,192.168.4.1
-dhcp-option=6,8.8.8.8,1.1.1.1
-CONF'
-
-            # Web Dashboard
-            sudo bash -c 'cat << "HTML" > sys_mnt/system/web_ui/index.html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Vince Headless Beast</title>
-    <style>
-        body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 20px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 8px; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>Vince Headless Gateway Active</h2>
-        <p>SSID: Vince_Beast_AP</p>
-        <p>Bluetooth Audio Sink: Active</p>
-        <p>TTL Bypass: 64</p>
-    </div>
-</body>
-</html>
-HTML'
-
-            sudo bash -c 'cat << "PY" > sys_mnt/system/web_ui/server.py
-import http.server
-import socketserver
-import os
-
-PORT = 80
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=DIRECTORY, **kwargs)
-
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
-    httpd.serve_forever()
-PY'
-
-            # --- 3. INJECT AUTO-START SCRIPT & SERVICE ---
-            sudo bash -c 'cat << "SCRIPT" > sys_mnt/system/bin/vince_init.sh
+          sudo bash -c 'cat << "SCRIPT" > sys_mnt/system/bin/vince_init.sh
 #!/system/bin/sh
 sleep 8
 setenforce 0 2>/dev/null || true
-
-# Performance & Forwarding
-echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
-mkswap /dev/block/zram0 2>/dev/null || true
-swapon /dev/block/zram0 2>/dev/null || true
 echo 1 > /proc/sys/net/ipv4/ip_forward
-
-# Cellular Data & Firewall TTL-64
-svc data enable
-sleep 2
-iptables -t nat -F 2>/dev/null || true
-iptables -t mangle -F 2>/dev/null || true
 iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
 iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
-
-# Direct Hotspot
-svc wifi enable 2>/dev/null || true
-cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || ifconfig wlan0 up 2>/dev/null || true
-
-# Direct Bluetooth Receiver
-svc bluetooth enable 2>/dev/null || true
-sleep 2
-bluetoothctl power on 2>/dev/null || true
-bluetoothctl discoverable on 2>/dev/null || true
-bluetoothctl pairable on 2>/dev/null || true
-
-# Web Dashboard
-python3 /system/web_ui/server.py &
+svc wifi enable
+cmd wifi start-softap Vince_Beast_AP open
+svc bluetooth enable
 SCRIPT'
-            sudo chmod 755 sys_mnt/system/bin/vince_init.sh
+          sudo chmod 755 sys_mnt/system/bin/vince_init.sh
 
-            sudo bash -c 'cat << "INITRC" > sys_mnt/system/etc/init/vince_gateway.rc
+          sudo bash -c 'cat << "INITRC" > sys_mnt/system/etc/init/vince_gateway.rc
 on property:sys.boot_completed=1
     exec u:r:init:s0 root root -- /system/bin/vince_init.sh
 INITRC'
-            sudo chmod 644 sys_mnt/system/etc/init/vince_gateway.rc
+          sudo chmod 644 sys_mnt/system/etc/init/vince_gateway.rc
 
-            # Repack Image ke Format Android Sparse & Compress Brotli
-            python3 -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py', 'img2sdat.py')"
-            sudo img2simg system.img system_sparse.img
-            python3 img2sdat.py system_sparse.img -o . -v 4
-            brotli -q 11 system.new.dat -o system.new.dat.br
-            sudo umount sys_mnt/
-            rm -rf system.img system_sparse.img system.new.dat
-          fi
+          # 4. REPACK ULANG RAW EXT4 IMAGE & COMPRESS
+          sudo umount sys_mnt/
+          img2simg system.img system_sparse.img
+          
+          # 5. KEMBALIKAN KE FORMAT SYSTEM.NEW.DAT.BR ORIGINAL
+          python3 -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py', 'img2sdat.py')"
+          python3 img2sdat.py system_sparse.img -o . -v 4
+          brotli -q 11 system.new.dat -o system.new.dat.br
 
-          # Buat ZIP Flashable Kerdil
+          # Clean up & Paketkan ZIP
+          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat.py
           zip -9 -r ../../output/vince-mini-headless.zip boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
 
-      - name: Upload Small Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vince-mini-headless
