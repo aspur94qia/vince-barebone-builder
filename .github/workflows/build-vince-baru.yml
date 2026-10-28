@@ -138,10 +138,10 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Seluruh paket utama + tools tambahan resmi yang 100% lolos kompilasi
           PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop aria2 luci-app-mwan3 luci-app-watchcat luci-app-wireguard luci-app-vnstat iperf3 tcpdump nmap screen tmux -ppp -ppp-mod-pppoe"
           
-          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
+          # Tambahkan ROOTFS_PARTSIZE=512 untuk memperbesar kapasitas partisi rootfs
+          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files" CONFIG_TARGET_ROOTFS_PARTSIZE=512
 
       - name: Pack to Android boot.img
         run: |
