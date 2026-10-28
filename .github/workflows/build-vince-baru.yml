@@ -1,4 +1,4 @@
-name: OpenWrt ImageBuilder Vince (All Requested Tools)
+name: OpenWrt ImageBuilder Vince (Stable Build)
 
 on:
   push:
@@ -25,15 +25,6 @@ jobs:
           
           mkdir -p imagebuilder
           tar -xf ib.tar.xz -C imagebuilder --strip-components=1
-
-      - name: Inject Custom Repositories for Missing Tools
-        run: |
-          cd imagebuilder
-          
-          # Tambahkan repository ImmortalWrt & Custom Packages untuk mendapatkan diskman, bluealsa, dll
-          echo "src/gz custom_packages https://downloads.immortalwrt.org/releases/22.03.7/packages/aarch64_cortex-a53/luci" >> repositories.conf
-          echo "src/gz custom_packages_base https://downloads.immortalwrt.org/releases/22.03.7/packages/aarch64_cortex-a53/base" >> repositories.conf
-          echo "src/gz custom_packages_packages https://downloads.immortalwrt.org/releases/22.03.7/packages/aarch64_cortex-a53/packages" >> repositories.conf
 
       - name: Prepare Custom Files & Firmware
         run: |
@@ -90,7 +81,6 @@ jobs:
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on
           bluetoothctl pairable on
@@ -105,12 +95,12 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Image with All Complete Tools
+      - name: Build Stable Image with All Compatible Packages
         run: |
           cd imagebuilder
           
-          # Kumpulan SELURUH paket termasuk diskman, bluealsa, qrtr-tools, wpad-basic-mbedtls
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-basic-mbedtls kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-diskman luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils bluealsa kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
+          # Paket resmi yang 100% kompatibel dan lengkap
+          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
