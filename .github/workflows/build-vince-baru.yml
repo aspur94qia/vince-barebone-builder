@@ -21,11 +21,20 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt & Install Feeds
+      - name: Clone OpenWrt & Clean Broken Feeds
         run: |
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
+          
+          # Hapus feed video yang rusak dari daftar default
+          sed -i '/video/d' feeds.conf.default
+          
           ./scripts/feeds update -a
+          
+          # Hapus package bermasalah dari tree feeds sebelum install
+          rm -rf feeds/packages/net/fwknop
+          rm -rf feeds/packages/sound/squeezelite
+          
           ./scripts/feeds install -a
 
       - name: Inject Qualcomm Firmware, Auto Bluetooth Speaker & SIM Config
@@ -81,17 +90,14 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Packages
+      - name: Configure Armvirt Target & All Packages
         run: |
           cd openwrt
           
-          # Lock Target Board & Subtarget Armvirt 64-bit secara Mutlak
-          echo 'CONFIG_TARGET_BOARD="armvirt"' > .config
-          echo 'CONFIG_TARGET_SUBTARGET="64"' >> .config
-          echo 'CONFIG_TARGET_armvirt=y' >> .config
-          echo 'CONFIG_TARGET_armvirt_64=y' >> .config
-          echo 'CONFIG_TARGET_armvirt_64_Default=y' >> .config
-          echo 'CONFIG_TARGET_PROFILE="Default"' >> .config
+          # Target Hardware Armvirt 64-bit
+          echo "CONFIG_TARGET_armvirt=y" > .config
+          echo "CONFIG_TARGET_armvirt_64=y" >> .config
+          echo "CONFIG_TARGET_armvirt_64_Default=y" >> .config
           
           # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
           echo "CONFIG_PACKAGE_modemmanager=y" >> .config
