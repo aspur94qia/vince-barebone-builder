@@ -21,21 +21,13 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt, Clean Feeds & Add Custom Packages
+      - name: Clone OpenWrt 23.05 Stable & Add Feeds
         run: |
-          git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
+          # Gunakan cabang stabil 23.05 agar kompatibel penuh dengan OpenClash & Passwall
+          git clone --depth 1 -b openwrt-23.05 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Hapus feed video dari konfig default
-          sed -i '/video/d' feeds.conf.default
-          
           ./scripts/feeds update -a
-          
-          # Hapus paket bermasalah BESERTA aplikasi LuCI penyertanya
-          rm -rf feeds/packages/net/fwknop
-          rm -rf feeds/luci/applications/luci-app-fwknopd
-          rm -rf feeds/packages/sound/squeezelite
-          
           ./scripts/feeds install -a
           
           # Clone Tema Argon & Tools Tambahan dari repositori resmi
@@ -49,9 +41,10 @@ jobs:
           git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/custom/passwall-packages || true
           git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/custom/luci-app-filemanager || true
 
-          # Hapus paket duplikat dari passwall-packages yang bentrok dengan official feeds
+          # Bersihkan paket duplikat dari passwall-packages yang bentrok dengan official feeds
           rm -rf package/custom/passwall-packages/chinadns-ng
           rm -rf package/custom/passwall-packages/dns2tcp
+          rm -rf package/custom/passwall-packages/shadowsocks-rust
 
       - name: Inject Firmware, Auto Configs, Auto TTL & Init Scripts
         run: |
@@ -120,20 +113,16 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Custom Packages
+      - name: Configure Armvirt Target & Stable Packages
         run: |
           cd openwrt
           
-          # 1. Inisialisasi Target Armvirt 64-bit
+          # Inisialisasi seed config utuh
           cat << 'EOF' > .config
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
-          EOF
-          make defconfig
 
-          # 2. Tambahkan Seluruh Paket Pengembang
-          cat << 'PKGCONF' >> .config
           # Wi-Fi Userspace
           CONFIG_PACKAGE_wpad-mbedtls=y
 
@@ -202,8 +191,8 @@ jobs:
           CONFIG_PACKAGE_luci-app-aria2=y
 
           # Bandwidth Monitor, Security & VPN Remote
-          CONFIG_PACKAGE_vnstat=y
-          CONFIG_PACKAGE_luci-app-vnstat=y
+          CONFIG_PACKAGE_vnstat2=y
+          CONFIG_PACKAGE_luci-app-vnstat2=y
           CONFIG_PACKAGE_luci-app-nlbwmon=y
           CONFIG_PACKAGE_luci-app-adblock=y
           CONFIG_PACKAGE_https-dns-proxy=y
@@ -219,7 +208,7 @@ jobs:
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_bash=y
-          PKGCONF
+          EOF
 
           make defconfig
 
