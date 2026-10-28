@@ -29,9 +29,8 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           
-          # Clone Tema Argon & Tools Tambahan ke folder custom
+          # Clone Tools Tambahan (Tanpa Argon untuk menghindari error wget-any)
           mkdir -p package/custom
-          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/custom/luci-theme-argon || true
           git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/luci-app-modemband || true
           git clone --depth 1 https://github.com/obsy/luci-app-sms-tool.git package/custom/luci-app-sms-tool || true
           git clone --depth 1 https://github.com/kostevanchuk/luci-app-atcommands.git package/custom/luci-app-atcommands || true
@@ -88,9 +87,8 @@ jobs:
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
           # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
-          mkdir -p /etc/crontabs
-          echo "0 4 * * * /sbin/reboot" >> /etc/crontabs/root
-          /etc/init.d/cron enable || true
+          mkdir -p files/etc/crontabs
+          echo "0 4 * * * /sbin/reboot" >> files/etc/crontabs/root
           
           # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
@@ -112,7 +110,7 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Fixed Dependecies
+      - name: Configure Armvirt Target & Stable Packages
         run: |
           cd openwrt
           
@@ -122,8 +120,7 @@ jobs:
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
 
-          # Dependensi Utama Wget untuk Tema Argon & SSL
-          CONFIG_PACKAGE_wget-ssl=y
+          # Dependensi Dasar
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_bash=y
 
@@ -162,10 +159,10 @@ jobs:
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
 
-          # LuCI UI, Argon Theme, Web File Manager & Web Terminal
+          # LuCI UI (Menggunakan tema default Bootstrap/Material yang stabil)
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-theme-bootstrap=y
           CONFIG_PACKAGE_luci-app-ttyd=y
           CONFIG_PACKAGE_luci-app-filemanager=y
 
