@@ -49,7 +49,7 @@ jobs:
           git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/custom/passwall-packages || true
           git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/custom/luci-app-filemanager || true
 
-          # Hapus paket duplikat dari passwall-packages yang sering bentrok dengan official feeds
+          # Hapus paket duplikat dari passwall-packages yang bentrok dengan official feeds
           rm -rf package/custom/passwall-packages/chinadns-ng
           rm -rf package/custom/passwall-packages/dns2tcp
 
@@ -79,7 +79,7 @@ jobs:
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
-          # Auto TTL 64 Bypass via nftables / iptables
+          # Auto TTL 64 Bypass via iptables
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
@@ -129,6 +129,9 @@ jobs:
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           echo "CONFIG_TARGET_armvirt_64_Default=y" >> .config
           make defconfig
+
+          # Berikan izin eksekusi ke scripts/config
+          chmod +x ./scripts/config
 
           # 2. Aktifkan Seluruh Paket Menggunakan scripts/config
           ./scripts/config --enable CONFIG_PACKAGE_wpad-mbedtls
