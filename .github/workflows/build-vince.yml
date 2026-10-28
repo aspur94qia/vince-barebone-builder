@@ -17,17 +17,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
           
-          # Tambah arsitektur arm64 & download busybox-static asli Ubuntu/Debian
+          # Download busybox-static asli Ubuntu/Debian ARM64
           sudo dpkg --add-architecture arm64
           sudo apt-get update
           mkdir -p /tmp/busybox_pkg
           cd /tmp/busybox_pkg
           apt-get download busybox-static:arm64
-          
-          # Ekstrak paket deb
           dpkg-deb -x busybox-static*.deb .
 
-      - name: Download LineageOS Vince & Embed All Beast Tools
+      - name: Download LineageOS Vince & Embed Tools & Patch Ramdisk Init
         run: |
           mkdir -p work/vince_beast/system/bin work/vince_beast/system/etc/router work/vince_beast/web_ui output
           echo "Downloading LineageOS Vince ROM..."
@@ -35,7 +33,7 @@ jobs:
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
           unzip work/lineage.zip boot.img -d work/
 
-          # --- 1. EMBED BUSYBOX & TOOLS ROUTER ---
+          # --- 1. EMBED BUSYBOX & ROUTER TOOLS ---
           echo "Embedding ARM64 Static Tools..."
           BUSYBOX_BIN=$(find /tmp/busybox_pkg -name "busybox" -type f | head -n 1)
           cp "$BUSYBOX_BIN" work/vince_beast/system/bin/busybox
@@ -50,7 +48,7 @@ jobs:
           wget -O work/vince_beast/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear || true
           chmod +x work/vince_beast/system/bin/dropbear || true
 
-          # --- 2. FILE KONFIGURASI ROUTER & DNSMASQ ---
+          # --- 2. CONFIG FILES ---
           cat << 'CONF' > work/vince_beast/system/etc/router/dnsmasq.conf
           interface=wlan0
           dhcp-range=192.168.4.50,192.168.4.150,12h
@@ -72,7 +70,7 @@ jobs:
           rsn_pairwise=CCMP
           HCONF
 
-          # --- 3. WEB DASHBOARD (Akses via Chrome) ---
+          # --- 3. WEB DASHBOARD ---
           cat << 'HTML' > work/vince_beast/web_ui/index.html
           <!DOCTYPE html>
           <html>
@@ -88,23 +86,17 @@ jobs:
                   .status-item { display: flex; justify-content: space-between; margin: 10px 0; font-size: 0.95rem; }
                   .badge { background: #065f46; color: #34d399; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; }
                   button { background: #0284c7; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
-                  button:hover { background: #0369a1; }
               </style>
           </head>
           <body>
               <div class="container">
                   <h1>Vince Headless Beast Gateway</h1>
                   <div class="card">
-                      <h2>System & Storage Optimizer</h2>
+                      <h2>System Status</h2>
                       <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
-                      <div class="status-item"><span>ZRAM / Swap:</span> <span class="badge">Active (Expanded)</span></div>
-                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (Pairing Mode)</span></div>
-                  </div>
-                  <div class="card">
-                      <h2>Advanced Tools & Network</h2>
                       <div class="status-item"><span>Hotspot SSID:</span> <b>Vince_Beast_AP</b></div>
+                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active</span></div>
                       <div class="status-item"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
-                      <button onclick="alert('Beast services refreshed!')">Restart All Services</button>
                   </div>
               </div>
           </body>
@@ -129,19 +121,19 @@ jobs:
           PY
           chmod +x work/vince_beast/web_ui/server.py
 
-          # --- 4. SKRIP AUTO-START PERTAMA BOOT (ZERO TOUCH) ---
+          # --- 4. AUTO-START SCRIPT (RUNS AS ROOT FROM INIT) ---
           cat << 'SCRIPT' > work/vince_beast/init_gateway.sh
           #!/system/bin/sh
           export PATH="/sbin:/system/sbin:/system/bin:/bin"
 
-          # A. Maksimalkan ZRAM & Routing CPU
+          # A. ZRAM & CPU Performance
           echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
           mkswap /dev/block/zram0 2>/dev/null || true
           swapon /dev/block/zram0 2>/dev/null || true
           echo 1 > /proc/sys/net/ipv4/ip_forward
           echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
 
-          # B. Aktifkan SIM / Data Seluler & Firewall TTL 64
+          # B. Cellular Data & Firewall TTL-64
           svc data enable
           sleep 4
           iptables -t nat -F
@@ -149,30 +141,30 @@ jobs:
           iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
-          # C. PAKSA OTOMATIS NYALA WI-FI HOTSPOT
+          # C. Enable Wi-Fi Hotspot
           svc wifi enable 2>/dev/null || true
           cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || ifconfig wlan0 up 2>/dev/null || true
 
-          # D. PAKSA OTOMATIS NYALA BLUETOOTH RECEIVER (AUDIO SINK)
+          # D. Enable Bluetooth Receiver (Audio Sink)
           svc bluetooth enable
           sleep 2
           bluetoothctl power on 2>/dev/null || true
           bluetoothctl discoverable on 2>/dev/null || true
           bluetoothctl pairable on 2>/dev/null || true
 
-          # E. Web Control Panel
+          # E. Web UI Server
           python3 /vince_beast/web_ui/server.py &
           
-          echo "Vince Beast Ultimate Auto-Boot Initialized!"
+          echo "Vince Beast Gateway Native Root Init Complete!"
           SCRIPT
           chmod +x work/vince_beast/init_gateway.sh
 
-      - name: Finalize & Package Output Boot Image
+      - name: Package Output Boot Image
         run: |
           cp work/boot.img output/vince-beast-ultimate-boot.img
           sudo chmod -R 777 output
 
-      - name: Upload Beast Ultimate Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vince-beast-ultimate-suite
