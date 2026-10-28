@@ -101,8 +101,8 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Menggunakan PROFILE="generic" yang valid untuk armvirt/64
-          make image PROFILE="generic" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
+          # Menggunakan PROFILE="Default" (Kapital) yang terdaftar di armvirt/64 ImageBuilder
+          make image PROFILE="Default" PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
