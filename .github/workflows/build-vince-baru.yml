@@ -21,7 +21,7 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt & Clean Broken Feeds
+      - name: Clone OpenWrt, Clean Feeds & Add Custom Packages
         run: |
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
@@ -38,19 +38,28 @@ jobs:
           
           ./scripts/feeds install -a
           
-          # Clone Tema Argon langsung ke paket lokal
+          # Clone Tema Argon & Tools Tambahan (ModemBand, SMS Tool, ATCommands, OpenClash, Passwall, File Manager)
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon || true
+          git clone --depth 1 https://github.com/4230/luci-app-modemband.git package/luci-app-modemband || true
+          git clone --depth 1 https://github.com/4230/luci-app-sms-tool.git package/luci-app-sms-tool || true
+          git clone --depth 1 https://github.com/kostevanchuk/luci-app-atcommands.git package/luci-app-atcommands || true
+          git clone --depth 1 https://github.com/vernesong/OpenClash.git package/luci-app-openclash || true
+          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall.git package/passwall || true
+          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/passwall-packages || true
+          git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/luci-app-filemanager || true
 
-      - name: Inject Qualcomm Firmware, Auto Bluetooth Speaker & SIM Config
+      - name: Inject Firmware, Auto Configs, Auto TTL & Init Scripts
         run: |
           cd openwrt
           
-          # Firmware Bluetooth Qualcomm
+          # 1. Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           mkdir -p files/lib/firmware/qcom
+          mkdir -p files/lib/firmware/wcn36xx
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
+          wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
-          # Konfigurasi Bluetooth Speaker
+          # 2. Konfigurasi Bluetooth Speaker
           mkdir -p files/etc/bluetooth
           cat << 'BTCONF' > files/etc/bluetooth/main.conf
           [General]
@@ -60,10 +69,14 @@ jobs:
           PairableTimeout = 0
           BTCONF
 
-          # Skrip First Boot Auto-Connect SIM & Bluetooth Receiver Mode
+          # 3. Skrip First Boot (Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
           mkdir -p files/etc/uci-defaults
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
+          
+          # Auto TTL 64 Bypass (Aman Tethering / Hotspot)
+          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
+          iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
           # Auto-connect SIM Card
           uci set network.wan=interface
@@ -73,6 +86,14 @@ jobs:
           uci set network.wan.metric='10'
           uci set network.wan.autoconnect='1'
           uci commit network
+          
+          # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
+          echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
+          
+          # Auto Reboot Tiap Jam 04:00 Pagi (Refresh RAM & Sinyal)
+          mkdir -p /etc/crontabs
+          echo "0 4 * * * /sbin/reboot" >> /etc/crontabs/root
+          /etc/init.d/cron enable || true
           
           # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
@@ -94,7 +115,7 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Valid Packages
+      - name: Configure Armvirt Target & Full Feature Packages
         run: |
           cd openwrt
           
@@ -103,15 +124,40 @@ jobs:
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           make defconfig
           
-          # TAHAP 2: Tambahkan paket aplikasi (dengan nama paket terverifikasi)
+          # TAHAP 2: Tambahkan seluruh paket fitur kustom
           cat << 'PKGCONF' >> .config
-          # Qualcomm Modem & SIM Userspace Tools
+          # Hardware Wi-Fi Internal (WCN36xx) & Hostapd
+          CONFIG_PACKAGE_kmod-wcn36xx=y
+          CONFIG_PACKAGE_wcn36xx-firmware=y
+          CONFIG_PACKAGE_hostapd=y
+          CONFIG_PACKAGE_wpad-mbedtls=y
+          
+          # Driver Modem SIM Card Internal Qualcomm & TTL Fix
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
           CONFIG_PACKAGE_libqmi=y
           CONFIG_PACKAGE_qmi-utils=y
           CONFIG_PACKAGE_wwan=y
           CONFIG_PACKAGE_qrtr-tools=y
+          CONFIG_PACKAGE_iptables-mod-ipopt=y
+          CONFIG_PACKAGE_kmod-ipt-ipopt=y
+          
+          # Modem & SIM Tools (Band Locker, SMS/USSD, AT Commands)
+          CONFIG_PACKAGE_luci-app-modemband=y
+          CONFIG_PACKAGE_luci-app-sms-tool=y
+          CONFIG_PACKAGE_luci-app-atcommands=y
+          CONFIG_PACKAGE_sms-tool=y
+          
+          # Tunneling & Injeksi Internet
+          CONFIG_PACKAGE_luci-app-openclash=y
+          CONFIG_PACKAGE_luci-app-passwall=y
+          
+          # Optimasi TCP BBR, SmartDNS & ZRAM Swap
+          CONFIG_PACKAGE_kmod-tcp-bbr=y
+          CONFIG_PACKAGE_smartdns=y
+          CONFIG_PACKAGE_luci-app-smartdns=y
+          CONFIG_PACKAGE_zram-swap=y
+          CONFIG_PACKAGE_kmod-zram=y
           
           # Sound & Bluetooth Userspace Stack
           CONFIG_PACKAGE_alsa-utils=y
@@ -120,18 +166,20 @@ jobs:
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
           
-          # LuCI UI & Web Terminal
+          # LuCI UI, Argon Theme, Web File Manager & Web Terminal
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-app-ttyd=y
+          CONFIG_PACKAGE_luci-app-filemanager=y
           
-          # Wi-Fi & Repeater (WISP)
-          CONFIG_PACKAGE_wpad-mbedtls=y
+          # Wi-Fi Repeater (WISP) & Multi-WAN Switcher
           CONFIG_PACKAGE_travelmate=y
           CONFIG_PACKAGE_luci-app-travelmate=y
           CONFIG_PACKAGE_relayd=y
           CONFIG_PACKAGE_luci-proto-relay=y
+          CONFIG_PACKAGE_mwan3=y
+          CONFIG_PACKAGE_luci-app-mwan3=y
           
           # USB Tethering & Support Modem USB
           CONFIG_PACKAGE_kmod-usb-net=y
@@ -150,9 +198,7 @@ jobs:
           CONFIG_PACKAGE_luci-app-samba4=y
           CONFIG_PACKAGE_luci-app-aria2=y
           
-          # Network Switcher, Bandwidth Monitor & Security
-          CONFIG_PACKAGE_mwan3=y
-          CONFIG_PACKAGE_luci-app-mwan3=y
+          # Bandwidth Monitor, Security & VPN Remote
           CONFIG_PACKAGE_vnstat=y
           CONFIG_PACKAGE_luci-app-vnstat=y
           CONFIG_PACKAGE_luci-app-nlbwmon=y
@@ -164,7 +210,7 @@ jobs:
           CONFIG_PACKAGE_tailscale=y
           CONFIG_PACKAGE_luci-app-wireguard=y
           
-          # Utilitas Terminal
+          # Utilitas Terminal CLI
           CONFIG_PACKAGE_nano=y
           CONFIG_PACKAGE_htop=y
           CONFIG_PACKAGE_curl=y
