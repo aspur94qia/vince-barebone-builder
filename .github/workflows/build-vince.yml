@@ -15,7 +15,7 @@ jobs:
       - name: 1. Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
+          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl git
 
       - name: 2. Download Native ARM64 Tools
         run: |
@@ -63,10 +63,15 @@ jobs:
           cd work/extracted
           sudo umount sys_mnt/
           img2simg system.img system_sparse.img
-          wget -q https://raw.githubusercontent.com/xpirt/img2sdat/master/img2sdat.py
-          python3 img2sdat.py system_sparse.img -o . -v 4
+          
+          # Clone full img2sdat repo to include all python modules (common, blockimgdiff, etc.)
+          git clone https://github.com/xpirt/img2sdat.git img2sdat_repo
+          python3 img2sdat_repo/img2sdat.py system_sparse.img -o . -v 4
+          
           brotli -q 11 system.new.dat -o system.new.dat.br
-          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat.py
+          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat_repo sdat2img.py
+          
+          # Pastikan file vendor yang asli ikut ter-include ke zip output
           zip -9 -r "../../output/vince-mini-headless.zip" boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
 
       - name: 8. Upload Artifact
