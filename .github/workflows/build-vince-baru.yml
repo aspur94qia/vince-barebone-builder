@@ -65,7 +65,7 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Eksklusi paket bermasalah dengan tanda minus (-)
+          # Paket esensial tanpa konflik
           PACKAGES="luci luci-ssl luci-theme-bootstrap block-mount e2fsprogs nano htop -ppp -ppp-mod-pppoe -dnsmasq"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
@@ -74,15 +74,15 @@ jobs:
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find imagebuilder/bin/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" -o -name "*kernel*" \) | head -n 1)
-          FIND_INITRD=$(find imagebuilder/bin/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" -o -name "*ext4*.img" \) | head -n 1)
+          # Jalur lokasi Kernel dan Ramdisk yang pasti ditemukan
+          FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
+          FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-rootfs.cpio.gz" | head -n 1)
           
           echo "Found Kernel: $FIND_KERNEL"
           echo "Found Initrd: $FIND_INITRD"
           
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
             echo "ERROR: Kernel or Ramdisk not found!"
-            find imagebuilder/bin/ -type f
             exit 1
           fi
 
