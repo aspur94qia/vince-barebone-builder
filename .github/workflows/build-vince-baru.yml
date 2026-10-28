@@ -1,4 +1,4 @@
-name: Fresh OpenWrt Vince Build (Master)
+name: Fresh OpenWrt Vince Build (Stable 23.05)
 
 on:
   push:
@@ -21,24 +21,16 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt Master, Clean Buggy Feeds & Add Custom Tools
+      - name: Clone OpenWrt 23.05 Stable & Add Feeds
         run: |
-          git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
+          # Menggunakan branch 23.05 yang stabil dan kompatibel dengan modem tools
+          git clone --depth 1 -b openwrt-23.05 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           
-          # Hapus feed video
-          sed -i '/video/d' feeds.conf.default
-          
           ./scripts/feeds update -a
-          
-          # Hapus paket bawaan feeds master yang memicu recursive dependency error
-          rm -rf feeds/packages/net/fwknop
-          rm -rf feeds/luci/applications/luci-app-fwknopd
-          rm -rf feeds/packages/sound/squeezelite
-          
           ./scripts/feeds install -a
           
-          # Tambahkan tools modem (Tanpa Argon untuk menghindari error wget-any di master)
+          # Tambahkan modem tools resmi yang kompatibel dengan 23.05
           mkdir -p package/custom
           git clone --depth 1 https://github.com/obsy/luci-app-modemband.git package/custom/modemband || true
           git clone --depth 1 https://github.com/obsy/luci-app-sms-tool.git package/custom/sms-tool || true
@@ -109,17 +101,17 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Master Packages
+      - name: Configure Armvirt Target & Stable Packages
         run: |
           cd openwrt
           
-          # Kunci target armvirt master
+          # Kunci target armvirt 23.05
           cat << 'EOF' > .config
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
 
-          # Dependensi Utama Master
+          # Dependensi Utama Wget & SSL
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_bash=y
@@ -152,7 +144,7 @@ jobs:
           CONFIG_PACKAGE_bluez-utils=y
           CONFIG_PACKAGE_bluealsa=y
 
-          # LuCI UI & Tema Bootstrap (Stabil di Master)
+          # LuCI UI & Tema Bootstrap (Stabil di 23.05)
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
           CONFIG_PACKAGE_luci-theme-bootstrap=y
