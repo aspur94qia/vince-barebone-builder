@@ -3,30 +3,41 @@ set -e
 
 cd work/extracted
 
-echo "==> Deep cleaning system partition (aggressive trim)..."
+echo "==> EXTREME SYSTEM CORE STRIPPING (Removing all GUI, Apex, Product, Ext, Media)..."
 sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/priv-app/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/apex/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/product/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/system_ext/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/wallpaper/* 2>/dev/null || true
 sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
-sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
-sudo rm -rf sys_mnt/system/product/app/* 2>/dev/null || true
-sudo rm -rf sys_mnt/system/product/priv-app/* 2>/dev/null || true
-sudo rm -rf sys_mnt/system/system_ext/app/* 2>/dev/null || true
-sudo rm -rf sys_mnt/system/system_ext/priv-app/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/media/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/tts/* 2>/dev/null || true
+sudo rm -rf sys_mnt/system/keyboards/* 2>/dev/null || true
 
-# Jika ada partisi vendor terpisah, kita bersihkan file non-esensialnya
+# Bersihkan nested system path jika ada
+if [ -d "sys_mnt/system/system" ]; then
+  sudo rm -rf sys_mnt/system/system/app/* 2>/dev/null || true
+  sudo rm -rf sys_mnt/system/system/priv-app/* 2>/dev/null || true
+  sudo rm -rf sys_mnt/system/system/apex/* 2>/dev/null || true
+  sudo rm -rf sys_mnt/system/system/product/* 2>/dev/null || true
+  sudo rm -rf sys_mnt/system/system/system_ext/* 2>/dev/null || true
+fi
+
+# Proses Vendor Partisi secara ekstrem tapi aman untuk driver & firmware
 if [ -f "vendor.new.dat.br" ]; then
-  echo "==> Processing vendor partition..."
+  echo "==> Processing and trimming vendor partition core..."
   brotli -d vendor.new.dat.br -o vendor.new.dat
   python3 sdat2img.py vendor.transfer.list vendor.new.dat vendor.img 2>/dev/null || true
   mkdir -p vendor_mnt
   sudo mount -o loop vendor.img vendor_mnt/
   
-  # Hapus app/priv-app di vendor jika ada, tapi pertahankan firmware & lib
+  # Hapus semua aplikasi, overlay, dan bloatware di vendor, sisakan firmware, lib, etags, dan bin hardware
   sudo rm -rf vendor_mnt/app/* 2>/dev/null || true
   sudo rm -rf vendor_mnt/priv-app/* 2>/dev/null || true
   sudo rm -rf vendor_mnt/overlay/* 2>/dev/null || true
+  sudo rm -rf vendor_mnt/wallpaper/* 2>/dev/null || true
+  sudo rm -rf vendor_mnt/media/* 2>/dev/null || true
   
   sudo umount vendor_mnt/
   img2simg vendor.img vendor_sparse.img
@@ -36,7 +47,7 @@ if [ -f "vendor.new.dat.br" ]; then
   rm -f vendor_sparse.img vendor.new.dat
 fi
 
-# Deteksi path system bin
+# Deteksi path system bin yang benar
 if [ -d "sys_mnt/system/system/bin" ]; then
   SYS_BIN="sys_mnt/system/system/bin"
   SYS_ETC="sys_mnt/system/system/etc"
@@ -45,26 +56,26 @@ else
   SYS_ETC="sys_mnt/system/etc"
 fi
 
-echo "Detected correct bin path: $SYS_BIN"
+echo "Target system bin path: $SYS_BIN"
 sudo mkdir -p "$SYS_BIN" "$SYS_ETC/router" "$SYS_ETC/init" sys_mnt/system/web_ui
 
-# Injeksi tools network gateway prioritas
+# Injeksi Network Tools Prioritas
 for tool in busybox hostapd dnsmasq dropbear iw tcpdump iftop; do
   if [ -f "/tmp/native_tools/$tool" ]; then
     sudo cp "/tmp/native_tools/$tool" "$SYS_BIN/"
     sudo chmod 755 "$SYS_BIN/$tool"
-    echo "Successfully injected: $tool"
+    echo "Injected tool: $tool"
   fi
 done
 
 sudo "$SYS_BIN/busybox" --install -s "$SYS_BIN" 2>/dev/null || true
 
-# Konfigurasi Network & Web UI
+# Konfigurasi Router & Web UI Ringan
 echo "interface=wlan0" | sudo tee "$SYS_ETC/router/dnsmasq.conf" > /dev/null
 echo "dhcp-range=192.168.4.50,192.168.4.150,12h" | sudo tee -a "$SYS_ETC/router/dnsmasq.conf" > /dev/null
-echo "<html><body><h2>Vince Gateway Active</h2></body></html>" | sudo tee sys_mnt/system/web_ui/index.html > /dev/null
+echo "<html><body><h2>Vince Core Router Active</h2></body></html>" | sudo tee sys_mnt/system/web_ui/index.html > /dev/null
 
-# Skrip init otomatis (TTL 64, IP Forward, Hostapd/SoftAP, Dropbear SSH)
+# Skrip Init Startup (TTL 64, IP Forwarding, SoftAP, Dropbear SSH)
 sudo bash -c 'cat << "INSCRIPT" > '"$SYS_BIN"'/vince_init.sh
 #!/system/bin/sh
 sleep 8
@@ -73,7 +84,7 @@ echo 1 > /proc/sys/net/ipv4/ip_forward
 iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
 iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 svc wifi enable 2>/dev/null || true
-cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || true
+cmd wifi start-softap Vince_Core_AP open 2>/dev/null || true
 svc bluetooth enable 2>/dev/null || true
 bluetoothctl power on 2>/dev/null || true
 dropbear -R -p 22 2>/dev/null || true
