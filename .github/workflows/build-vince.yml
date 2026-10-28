@@ -46,25 +46,16 @@ jobs:
           mkdir sys_mnt
           sudo mount -o loop system.img sys_mnt/
 
-      - name: 5. Strip GUI and Bloatware
-        run: |
-          cd work/extracted
-          sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
-          sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
-
-      - name: 6. Inject Tools and Configs Safely
+      - name: 5. Inject Tools and Configs Safely
         run: ./scripts/inject.sh
 
-      - name: 7. Repack and Compress ROM (Local Utils)
+      - name: 6. Repack and Compress ROM (Core Minimalist)
         run: |
           cd work/extracted
-          sudo umount sys_mnt/
+          sudo umount sys_mnt/ || true
           img2simg system.img system_sparse.img
           
-          # Hapus file sdat lama biar tidak konflik saat kompresi ulang
+          # Hapus file sdat lama sistem
           rm -f system.new.dat.br system.transfer.list system.new.dat
           
           # Salin modul img2sdat lokal ke folder kerja extracted
@@ -72,11 +63,21 @@ jobs:
           python3 img2sdat.py system_sparse.img -o . -v 4
           
           brotli -q 6 system.new.dat -o system.new.dat.br
+          
+          # Cek ketersediaan file vendor, jika ada vendor.img hasil trim, repack ke .dat.br
+          if [ -f "vendor.img" ]; then
+            img2simg vendor.img vendor_sparse.img
+            python3 img2sdat.py vendor_sparse.img -o . -v 4
+            brotli -q 6 vendor.new.dat -o vendor.new.dat.br
+            rm -f vendor.img vendor_sparse.img vendor.new.dat
+          fi
+          
           rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py rangelib.py
           
-          zip -9 -r "../../output/vince-mini-headless.zip" boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
+          # Zip hanya file yang benar-benar ada di folder
+          zip -9 -r "../../output/vince-mini-headless.zip" boot.img META-INF/ $(ls *.dat.br *.transfer.list 2>/dev/null)
 
-      - name: 8. Upload Artifact
+      - name: 7. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vince-mini-headless
