@@ -19,7 +19,7 @@ jobs:
 
       - name: Download LineageOS 23.2 Vince ROM & Alpine Rootfs
         run: |
-          mkdir -p work output/chroot_bundle
+          mkdir -p work output
           echo "Downloading LineageOS 23.2 Vince..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
@@ -28,12 +28,12 @@ jobs:
           echo "Downloading Alpine Linux Rootfs (ARM64)..."
           ALPINE_URL="https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
           aria2c -x16 -s16 -o work/alpine.tar.gz "$ALPINE_URL"
-          mkdir -p output/chroot_bundle/rootfs
-          tar -xzf work/alpine.tar.gz -C output/chroot_bundle/rootfs
+          mkdir -p work/chroot_bundle/rootfs
+          tar -xzf work/alpine.tar.gz -C work/chroot_bundle/rootfs
 
       - name: Setup Alpine Chroot Services & Tools Installer
         run: |
-          cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
+          cat << 'SCRIPT' > work/chroot_bundle/init_headless.sh
           #!/system/bin/sh
           setprop sys.usb.config rndis,adb
           service call connectivity 33 i32 1 s16 "OpenWrt-Vince" s16 "" i32 0
@@ -48,15 +48,28 @@ jobs:
             chroot $CHROOT_DIR /bin/sh /etc/init_tools.sh &
           fi
           SCRIPT
-          chmod +x output/chroot_bundle/init_headless.sh
+          chmod +x work/chroot_bundle/init_headless.sh
 
-          cat << 'TOOLS' > output/chroot_bundle/rootfs/etc/init_tools.sh
+          cat << 'TOOLS' > work/chroot_bundle/rootfs/etc/init_tools.sh
           #!/bin/sh
           apk add --no-network aria2 tmux screen nmap tcpdump vnstat wireguard-tools modemmanager bluez 2>/dev/null || true
           aria2c --enable-rpc --rpc-listen-all=true &
           tmux new-session -d -s vince_main
           TOOLS
-          chmod +x output/chroot_bundle/rootfs/etc/init_tools.sh
+          chmod +x work/chroot_bundle/rootfs/etc/init_tools.sh
+
+      - name: Fix Permissions & Pack Chroot Bundle
+        run: |
+          # Perbaiki izin akses folder agar tidak kena EACCES
+          sudo chmod -R 777 work/chroot_bundle
+          
+          # Compress chroot_bundle menjadi single tar.gz file
+          cd work
+          tar -czf ../output/chroot_bundle.tar.gz chroot_bundle
+          cd ..
+          
+          # Ubah permission folder output
+          sudo chmod -R 777 output
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
