@@ -1,4 +1,4 @@
-name: Build Vince Headless
+name: Build Vince Headless Modular
 
 on:
   push:
@@ -12,15 +12,118 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Build Dependencies
+      - name: 1. Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
 
-      - name: Execute ROM Builder Script
-        run: ./scripts/build.sh
+      - name: 2. Download Native ARM64 Tools
+        run: |
+          mkdir -p /tmp/native_tools
+          cd /tmp/native_tools
+          wget -q -O busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a || true
+          wget -q -O hostapd https://raw.githubusercontent.com/nethunteros/android_external_hostapd/master/hostapd || true
+          wget -q -O dnsmasq https://raw.githubusercontent.com/eugr/dnsmasq-android/master/binary/arm64-v8a/dnsmasq || true
+          wget -q -O dropbear https://raw.githubusercontent.com/mchome/dropbear-android/master/bin/arm64-v8a/dropbear || true
+          wget -q -O iw https://raw.githubusercontent.com/nethunteros/android_external_iw/master/iw || true
+          wget -q -O tcpdump https://raw.githubusercontent.com/nethunteros/android_external_tcpdump/master/tcpdump || true
+          wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
+          chmod +x *
 
-      - name: Upload Artifact
+      - name: 3. Download LineageOS ROM
+        run: |
+          mkdir -p work output
+          ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
+          aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
+          unzip work/rom.zip -d work/extracted/
+
+      - name: 4. Unpack System Image
+        run: |
+          cd work/extracted
+          brotli -d system.new.dat.br -o system.new.dat
+          wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
+          python3 sdat2img.py system.transfer.list system.new.dat system.img
+          mkdir sys_mnt
+          sudo mount -o loop system.img sys_mnt/
+
+      - name: 5. Strip GUI and Bloatware
+        run: |
+          cd work/extracted
+          sudo rm -rf sys_mnt/system/priv-app/SystemUI 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/priv-app/Trebuchet 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/app/* 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/media/audio/* 2>/dev/null || true
+          sudo rm -rf sys_mnt/system/fonts/* 2>/dev/null || true
+
+      - name: 6. Inject Tools and Configs Safely
+        run: |
+          cd work/extracted
+          
+          # Cek direktori bin yang bener secara aman
+          if [ -d "sys_mnt/system/system/bin" ]; then
+            SYS_BIN="sys_mnt/system/system/bin"
+            SYS_ETC="sys_mnt/system/system/etc"
+          else
+            SYS_BIN="sys_mnt/system/bin"
+            SYS_ETC="sys_mnt/system/etc"
+          fi
+
+          echo "Detected correct bin path: $SYS_BIN"
+          sudo mkdir -p "$SYS_BIN" "$SYS_ETC/router" "$SYS_ETC/init" "sys_mnt/system/web_ui"
+
+          # Copy tools satu-persatu biar ga error wildcard kosong
+          sudo cp /tmp/native_tools/busybox "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/hostapd "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/dnsmasq "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/dropbear "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/iw "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/tcpdump "$SYS_BIN/" || true
+          sudo cp /tmp/native_tools/iftop "$SYS_BIN/" || true
+          
+          sudo chmod 755 "$SYS_BIN/"*
+          sudo "$SYS_BIN/busybox" --install -s "$SYS_BIN" 2>/dev/null || true
+
+          # Config Router
+          echo "interface=wlan0" | sudo tee "$SYS_ETC/router/dnsmasq.conf" > /dev/null
+          echo "dhcp-range=192.168.4.50,192.168.4.150,12h" | sudo tee -a "$SYS_ETC/router/dnsmasq.conf" > /dev/null
+
+          # Web Dashboard
+          echo "<html><body><h2>Vince Gateway Active</h2></body></html>" | sudo tee "sys_mnt/system/web_ui/index.html" > /dev/null
+
+          # Auto Start Script
+          sudo bash -c 'cat << "INSCRIPT" > '"$SYS_BIN"'/vince_init.sh
+#!/system/bin/sh
+sleep 8
+setenforce 0 2>/dev/null || true
+echo 1 > /proc/sys/net/ipv4/ip_forward
+iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
+iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
+svc wifi enable 2>/dev/null || true
+cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || true
+svc bluetooth enable 2>/dev/null || true
+bluetoothctl power on 2>/dev/null || true
+dropbear -R -p 22 2>/dev/null || true
+INSCRIPT'
+          sudo chmod 755 "$SYS_BIN/vince_init.sh"
+
+          sudo bash -c 'cat << "INRC" > '"$SYS_ETC"'/init/vince_gateway.rc
+on property:sys.boot_completed=1
+    exec u:r:init:s0 root root -- /system/bin/vince_init.sh
+INRC'
+          sudo chmod 644 "$SYS_ETC/init/vince_gateway.rc"
+
+      - name: 7. Repack and Compress ROM
+        run: |
+          cd work/extracted
+          sudo umount sys_mnt/
+          img2simg system.img system_sparse.img
+          wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
+          python3 sdat2img.py system_sparse.img -o . -v 4
+          brotli -q 11 system.new.dat -o system.new.dat.br
+          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py img2sdat.py
+          zip -9 -r "../../output/vince-mini-headless.zip" boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
+
+      - name: 8. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vince-mini-headless
