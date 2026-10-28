@@ -21,13 +21,12 @@ jobs:
           apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
           pip3 install pycryptodome
 
-      - name: Clone OpenWrt & Install Selective Feeds
+      - name: Clone OpenWrt & Install Feeds
         run: |
           git clone --depth 1 https://git.openwrt.org/openwrt/openwrt.git openwrt
           cd openwrt
           ./scripts/feeds update -a
-          # Hanya install feed yang dibutuhkan (menghindari feed video/qt5 yang bermasalah)
-          ./scripts/feeds install -p packages -p luci -p routing -p telephony -a
+          ./scripts/feeds install -a
 
       - name: Inject Qualcomm Firmware, Auto Bluetooth Speaker & SIM Config
         run: |
@@ -38,7 +37,7 @@ jobs:
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           
-          # Konfigurasi Nama & Profile Bluetooth Speaker
+          # Konfigurasi Bluetooth Speaker
           mkdir -p files/etc/bluetooth
           cat << 'BTCONF' > files/etc/bluetooth/main.conf
           [General]
@@ -62,12 +61,11 @@ jobs:
           uci set network.wan.autoconnect='1'
           uci commit network
           
-          # Start Bluetooth Qualcomm & Set Auto Discoverable
+          # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          # Service Receiver & Agent Auto-Accept Pairing
           bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on
@@ -83,13 +81,17 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & All Required Packages
+      - name: Configure Armvirt Target & Packages
         run: |
           cd openwrt
           
-          # Target Hardware Armvirt 64-bit
-          echo "CONFIG_TARGET_armvirt=y" > .config
-          echo "CONFIG_TARGET_armvirt_64=y" >> .config
+          # Lock Target Board & Subtarget Armvirt 64-bit secara Mutlak
+          echo 'CONFIG_TARGET_BOARD="armvirt"' > .config
+          echo 'CONFIG_TARGET_SUBTARGET="64"' >> .config
+          echo 'CONFIG_TARGET_armvirt=y' >> .config
+          echo 'CONFIG_TARGET_armvirt_64=y' >> .config
+          echo 'CONFIG_TARGET_armvirt_64_Default=y' >> .config
+          echo 'CONFIG_TARGET_PROFILE="Default"' >> .config
           
           # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
           echo "CONFIG_PACKAGE_modemmanager=y" >> .config
@@ -167,7 +169,7 @@ jobs:
           
           make defconfig
           
-          # Verifikasi akhir target armvirt
+          # Verifikasi target
           if ! grep -q "CONFIG_TARGET_armvirt=y" .config; then
             echo "ERROR: Target armvirt masih ter-reset!"
             exit 1
