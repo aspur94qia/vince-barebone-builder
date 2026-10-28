@@ -17,18 +17,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl git unzip android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full aria2
 
-      - name: Download Stock LineageOS Vince Base ROM
+      - name: Fetch Physical Vince MSM8953 Boot Image
         run: |
-          mkdir -p base_rom
-          echo "Downloading LineageOS Vince Base..."
-          ROM_URL="https://downloads.sourceforge.net/project/rom-builders/files/vince/lineage-17.1-20230502-UNOFFICIAL-vince.zip"
-          aria2c -x16 -s16 -o base_rom/lineage.zip "$ROM_URL"
-          unzip base_rom/lineage.zip -d base_rom/extracted/
+          mkdir -p output/chroot_bundle
+          echo "Downloading Stock MSM8953 Boot Image from Repository Release..."
+          wget -q -O output/boot.img https://github.com/aspur94qia/vince_unitrix/releases/download/v1.0/boot.img
 
       - name: Prepare Rootfs Linux & Custom Tools Bundle
         run: |
-          mkdir -p output/chroot_bundle
-          
           # Membuat skrip auto-start untuk Android (RNDIS, Hotspot, SIM, Chroot Services)
           cat << 'SCRIPT' > output/chroot_bundle/init_headless.sh
           #!/system/bin/sh
@@ -57,11 +53,6 @@ jobs:
           fi
           SCRIPT
           chmod +x output/chroot_bundle/init_headless.sh
-
-      - name: Extract Boot Image for Fastboot
-        run: |
-          cp base_rom/extracted/boot.img output/boot.img
-          echo "Boot Image Ready!"
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
