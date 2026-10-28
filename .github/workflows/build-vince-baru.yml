@@ -115,20 +115,18 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Configure Armvirt Target & Full Feature Packages
+      - name: Configure Armvirt Target & Compatible Packages
         run: |
           cd openwrt
           
-          # TAHAP 1: Set Target Armvirt 64-bit
+          # TAHAP 1: Set Target Armvirt 64-bit murni
           echo "CONFIG_TARGET_armvirt=y" > .config
           echo "CONFIG_TARGET_armvirt_64=y" >> .config
           make defconfig
           
-          # TAHAP 2: Tambahkan seluruh paket fitur kustom
+          # TAHAP 2: Tambahkan seluruh paket userspace & tools tambahan
           cat << 'PKGCONF' >> .config
-          # Hardware Wi-Fi Internal (WCN36xx) & Hostapd
-          CONFIG_PACKAGE_kmod-wcn36xx=y
-          CONFIG_PACKAGE_wcn36xx-firmware=y
+          # Hostapd & Wi-Fi Userspace
           CONFIG_PACKAGE_hostapd=y
           CONFIG_PACKAGE_wpad-mbedtls=y
           
@@ -220,9 +218,11 @@ jobs:
           
           make defconfig
           
-          # Tampilkan status target di log
-          echo "=== VERIFIKASI TARGET BOARD ==="
-          grep "CONFIG_TARGET_BOARD=" .config || grep "CONFIG_TARGET_armvirt" .config || true
+          # Verifikasi target armvirt
+          if ! grep -q 'CONFIG_TARGET_BOARD="armvirt"' .config && ! grep -q 'CONFIG_TARGET_armvirt_64=y' .config; then
+            echo "ERROR: Target armvirt ter-reset!"
+            exit 1
+          fi
 
       - name: Download Packages
         run: |
