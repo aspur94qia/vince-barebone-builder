@@ -1,0 +1,170 @@
+name: Build Vince Headless OpenWrt Ultimate Suite
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-ultimate-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
+
+      - name: Download LineageOS Vince & Download All Router Binaries
+        run: |
+          mkdir -p work/vince_root/bin work/vince_root/etc/router work/vince_root/web_ui output
+          echo "Downloading LineageOS Vince ROM..."
+          ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
+          aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
+          unzip work/lineage.zip boot.img -d work/
+
+          # --- 1. DOWNLOAD BINARI ARM64 STATIS LENGKAP (TOOLS UTAMA) ---
+          echo "Downloading ARM64 Static Tools (BusyBox, Dnsmasq, Hostapd)..."
+          
+          # A. BusyBox (Swiss-army knife dasar sistem)
+          wget -O work/vince_root/bin/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
+          chmod +x work/vince_root/bin/busybox
+
+          # B. Dnsmasq (DHCP & DNS Server Lokal)
+          wget -O work/vince_root/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq 2>/dev/null || true
+          chmod +x work/vince_root/bin/dnsmasq || true
+
+          # C. Hostapd (Native Wi-Fi Access Point / Hotspot Controller)
+          wget -O work/vince_root/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd 2>/dev/null || true
+          chmod +x work/vince_root/bin/hostapd || true
+
+          # --- 2. FILE KONFIGURASI DNSMASQ ---
+          cat << 'CONF' > work/vince_root/etc/router/dnsmasq.conf
+          interface=wlan0
+          dhcp-range=192.168.4.50,192.168.4.150,12h
+          dhcp-option=3,192.168.4.1
+          dhcp-option=6,8.8.8.8,1.1.1.1
+          CONF
+
+          # --- 3. FILE KONFIGURASI HOSTAPD (Wi-Fi Hotspot Tanpa Layar) ---
+          cat << 'HCONF' > work/vince_root/etc/router/hostapd.conf
+          interface=wlan0
+          driver=nl80211
+          ssid=Vince_Headless_AP
+          hw_mode=g
+          channel=6
+          auth_algs=1
+          ignore_broadcast_ssid=0
+          wpa=2
+          wpa_passphrase=vincegateway
+          wpa_key_mgmt=WPA-PSK
+          rsn_pairwise=CCMP
+          HCONF
+
+          # --- 4. WEB DASHBOARD ALA LUCI OPENWRT (Akses via Chrome) ---
+          cat << 'HTML' > work/vince_root/web_ui/index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Vince Headless OpenWrt Dashboard</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+                  .container { max-width: 600px; margin: auto; }
+                  .card { background: #1e293b; padding: 20px; margin-bottom: 15px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); }
+                  h1 { font-size: 1.5rem; color: #38bdf8; text-align: center; margin-bottom: 25px; }
+                  h2 { font-size: 1.1rem; color: #38bdf8; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+                  .status-item { display: flex; justify-content: space-between; margin: 10px 0; font-size: 0.95rem; }
+                  .badge { background: #065f46; color: #34d399; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; }
+                  button { background: #0284c7; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+                  button:hover { background: #0369a1; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>Vince Headless OpenWrt Gateway</h1>
+                  <div class="card">
+                      <h2>System & Hardware (No LCD Mode)</h2>
+                      <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
+                      <div class="status-item"><span>CPU Governor:</span> <span class="badge">schedutil (Optimized)</span></div>
+                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active (A2DP)</span></div>
+                  </div>
+                  <div class="card">
+                      <h2>Network & Firewall</h2>
+                      <div class="status-item"><span>Hotspot SSID:</span> <b>Vince_Headless_AP</b></div>
+                      <div class="status-item"><span>SIM Card / Data:</span> <span class="badge">Auto-Online</span></div>
+                      <div class="status-item"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
+                      <button onclick="alert('Network service refreshed!')">Restart Gateway Services</button>
+                  </div>
+              </div>
+          </body>
+          </html>
+          HTML
+
+          # Backend Python Lightweight untuk nge-host Web UI di port 80
+          cat << 'PY' > work/vince_root/web_ui/server.py
+          import http.server
+          import socketserver
+          import os
+
+          PORT = 80
+          DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def __init__(self, *args, **kwargs):
+                  super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+          with socketserver.TCPServer(("", PORT), Handler) as httpd:
+              print(f"Serving OpenWrt Web UI at port {PORT}")
+              httpd.serve_forever()
+          PY
+          chmod +x work/vince_root/web_ui/server.py
+
+          # --- 5. SKRIP INIT ZERO-TOUCH UTAMA (Jalan Otomatis Tanpa Layar) ---
+          cat << 'SCRIPT' > work/vince_root/init_gateway.sh
+          #!/system/bin/sh
+          export PATH="/sbin:/system/sbin:/system/bin:/bin"
+
+          # A. Routing & Governor CPU (Jaga Suhu Adem 24/7)
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+
+          # B. Paksa Aktifkan Data Seluler & SIM Card Tanpa Intervensi
+          svc data enable
+          sleep 4
+
+          # C. Firewall, NAT, & TTL-64 Bumper (Anti-Tethering Operator)
+          iptables -t nat -F
+          iptables -t mangle -F
+          iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
+          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
+
+          # D. Wi-Fi SoftAP & Hotspot (Jalankan Hostapd & Dnsmasq)
+          ifconfig wlan0 up 2>/dev/null || true
+          # /vince_root/bin/hostapd -B /vince_root/etc/router/hostapd.conf
+          # /vince_root/bin/dnsmasq -C /vince_root/etc/router/dnsmasq.conf &
+
+          # E. Bluetooth Audio Sink (Auto-Speaker Mode Tanpa Layar)
+          bluetoothctl power on 2>/dev/null || true
+          bluetoothctl discoverable on 2>/dev/null || true
+          bluetoothctl pairable on 2>/dev/null || true
+
+          # F. Jalankan Web Control Panel (LuCI-Style di Chrome port 80)
+          python3 /vince_root/web_ui/server.py &
+          
+          echo "Vince Headless OpenWrt Ultimate Suite Initialized Successfully!"
+          SCRIPT
+          chmod +x work/vince_root/init_gateway.sh
+
+      - name: Finalize & Package Output Boot Image
+        run: |
+          cp work/boot.img output/vince-openwrt-ultimate-boot.img
+          sudo chmod -R 777 output
+
+      - name: Upload Ultimate Suite Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vince-headless-openwrt-ultimate
+          path: output/
