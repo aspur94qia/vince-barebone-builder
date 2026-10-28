@@ -1,4 +1,4 @@
-name: Build Vince Headless Ultimate Beast Suite
+name: Build Vince Ultra-Lite Headless ROM Suite
 
 on:
   push:
@@ -6,18 +6,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ultimate-beast:
+  build-headless-rom:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install System Dependencies & Fetch ARM64 Busybox
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3
+          sudo apt-get install -y wget curl unzip aria2 cpio android-sdk-libsparse-utils android-sdk-platform-tools-common p7zip-full python3 zip
           
-          # Download busybox-static asli Ubuntu/Debian ARM64
+          # Fetch ARM64 Static Busybox
           sudo dpkg --add-architecture arm64
           sudo apt-get update
           mkdir -p /tmp/busybox_pkg
@@ -25,38 +25,50 @@ jobs:
           apt-get download busybox-static:arm64
           dpkg-deb -x busybox-static*.deb .
 
-      - name: Download LineageOS Vince & Embed Tools & Patch Ramdisk Init
+      - name: Download & Ultra-Strip LineageOS Vince ROM
         run: |
-          mkdir -p work/vince_beast/system/bin work/vince_beast/system/etc/router work/vince_beast/web_ui output
+          mkdir -p work output
           echo "Downloading LineageOS Vince ROM..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
-          aria2c -x16 -s16 -o work/lineage.zip "$ROM_URL"
-          unzip work/lineage.zip boot.img -d work/
+          aria2c -x16 -s16 -o work/lineage_raw.zip "$ROM_URL"
+          
+          echo "Unpacking ROM..."
+          unzip work/lineage_raw.zip -d work/rom/
 
-          # --- 1. EMBED BUSYBOX & ROUTER TOOLS ---
-          echo "Embedding ARM64 Static Tools..."
+          # --- 1. EXTREME STRIP-DOWN (GUI, AUDIO, FONTS, APPS) ---
+          echo "Babat Habis Bloatware, UI, Media & Fonts..."
+          cd work/rom
+          rm -rf system/priv-app/SystemUI system/priv-app/Trebuchet system/priv-app/NexusLauncher* 2>/dev/null || true
+          rm -rf system/app/Camera2 system/app/Gallery2 system/app/Calendar system/app/DeskClock 2>/dev/null || true
+          rm -rf system/app/FM system/app/Music system/app/ExactCalculator system/app/* 2>/dev/null || true
+          rm -rf system/media/audio/* system/fonts/* 2>/dev/null || true
+
+          # --- 2. EMBED ROUTER TOOLS & UTILITIES ---
+          echo "Embedding ARM64 Router Tools & Binaries..."
+          mkdir -p system/bin system/etc/router system/web_ui system/etc/init
+
           BUSYBOX_BIN=$(find /tmp/busybox_pkg -name "busybox" -type f | head -n 1)
-          cp "$BUSYBOX_BIN" work/vince_beast/system/bin/busybox
-          chmod +x work/vince_beast/system/bin/busybox
+          cp "$BUSYBOX_BIN" system/bin/busybox
+          chmod +x system/bin/busybox
 
-          wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
-          chmod +x work/vince_beast/system/bin/dnsmasq || true
+          wget -O system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
+          chmod +x system/bin/dnsmasq || true
 
-          wget -O work/vince_beast/system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd || true
-          chmod +x work/vince_beast/system/bin/hostapd || true
+          wget -O system/bin/hostapd https://github.com/nethunteros/android_external_hostapd/raw/master/hostapd || true
+          chmod +x system/bin/hostapd || true
 
-          wget -O work/vince_beast/system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear || true
-          chmod +x work/vince_beast/system/bin/dropbear || true
+          wget -O system/bin/dropbear https://github.com/mchome/dropbear-android/raw/master/bin/arm64-v8a/dropbear || true
+          chmod +x system/bin/dropbear || true
 
-          # --- 2. CONFIG FILES ---
-          cat << 'CONF' > work/vince_beast/system/etc/router/dnsmasq.conf
+          # --- 3. CONFIG FILES ---
+          cat << 'CONF' > system/etc/router/dnsmasq.conf
           interface=wlan0
           dhcp-range=192.168.4.50,192.168.4.150,12h
           dhcp-option=3,192.168.4.1
           dhcp-option=6,8.8.8.8,1.1.1.1
           CONF
 
-          cat << 'HCONF' > work/vince_beast/system/etc/router/hostapd.conf
+          cat << 'HCONF' > system/etc/router/hostapd.conf
           interface=wlan0
           driver=nl80211
           ssid=Vince_Beast_AP
@@ -70,40 +82,40 @@ jobs:
           rsn_pairwise=CCMP
           HCONF
 
-          # --- 3. WEB DASHBOARD ---
-          cat << 'HTML' > work/vince_beast/web_ui/index.html
+          # --- 4. WEB DASHBOARD SERVER ---
+          cat << 'HTML' > system/web_ui/index.html
           <!DOCTYPE html>
           <html>
           <head>
               <title>Vince Headless Beast Dashboard</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <style>
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+                  body { font-family: sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
                   .container { max-width: 600px; margin: auto; }
-                  .card { background: #1e293b; padding: 20px; margin-bottom: 15px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); }
-                  h1 { font-size: 1.5rem; color: #38bdf8; text-align: center; margin-bottom: 25px; }
-                  h2 { font-size: 1.1rem; color: #38bdf8; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px; }
-                  .status-item { display: flex; justify-content: space-between; margin: 10px 0; font-size: 0.95rem; }
-                  .badge { background: #065f46; color: #34d399; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; }
-                  button { background: #0284c7; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+                  .card { background: #1e293b; padding: 20px; margin-bottom: 15px; border-radius: 12px; }
+                  h1 { color: #38bdf8; text-align: center; }
+                  h2 { color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+                  .status { display: flex; justify-content: space-between; margin: 10px 0; }
+                  .badge { background: #065f46; color: #34d399; padding: 2px 8px; border-radius: 6px; font-weight: bold; }
               </style>
           </head>
           <body>
               <div class="container">
-                  <h1>Vince Headless Beast Gateway</h1>
+                  <h1>Vince Headless Gateway</h1>
                   <div class="card">
                       <h2>System Status</h2>
-                      <div class="status-item"><span>Architecture:</span> <b>ARM64 Snapdragon 625</b></div>
-                      <div class="status-item"><span>Hotspot SSID:</span> <b>Vince_Beast_AP</b></div>
-                      <div class="status-item"><span>Bluetooth Audio Sink:</span> <span class="badge">Active</span></div>
-                      <div class="status-item"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
+                      <div class="status"><span>Device:</span> <b>Redmi 5 Plus (vince)</b></div>
+                      <div class="status"><span>Mode:</span> <b>Ultra-Lite Headless ROM</b></div>
+                      <div class="status"><span>Hotspot SSID:</span> <b>Vince_Beast_AP</b></div>
+                      <div class="status"><span>Bluetooth Audio Sink:</span> <span class="badge">Active</span></div>
+                      <div class="status"><span>TTL Bypass:</span> <span class="badge">--ttl-set 64</span></div>
                   </div>
               </div>
           </body>
           </html>
           HTML
 
-          cat << 'PY' > work/vince_beast/web_ui/server.py
+          cat << 'PY' > system/web_ui/server.py
           import http.server
           import socketserver
           import os
@@ -116,56 +128,58 @@ jobs:
                   super().__init__(*args, directory=DIRECTORY, **kwargs)
 
           with socketserver.TCPServer(("", PORT), Handler) as httpd:
-              print(f"Serving Beast Web UI at port {PORT}")
               httpd.serve_forever()
           PY
-          chmod +x work/vince_beast/web_ui/server.py
 
-          # --- 4. AUTO-START SCRIPT (RUNS AS ROOT FROM INIT) ---
-          cat << 'SCRIPT' > work/vince_beast/init_gateway.sh
+          # --- 5. AUTO-START SCRIPT & SERVICE ---
+          cat << 'SCRIPT' > system/bin/vince_init.sh
           #!/system/bin/sh
-          export PATH="/sbin:/system/sbin:/system/bin:/bin"
+          sleep 8
+          setenforce 0 2>/dev/null || true
 
-          # A. ZRAM & CPU Performance
+          # Performance & Forwarding
           echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
           mkswap /dev/block/zram0 2>/dev/null || true
           swapon /dev/block/zram0 2>/dev/null || true
           echo 1 > /proc/sys/net/ipv4/ip_forward
-          echo "schedutil" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
 
-          # B. Cellular Data & Firewall TTL-64
+          # Cellular Data & Firewall TTL-64
           svc data enable
-          sleep 4
-          iptables -t nat -F
-          iptables -t mangle -F
+          sleep 2
+          iptables -t nat -F 2>/dev/null || true
+          iptables -t mangle -F 2>/dev/null || true
           iptables -t nat -A POSTROUTING -o rmnet_data0 -j MASQUERADE 2>/dev/null || true
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 2>/dev/null || true
 
-          # C. Enable Wi-Fi Hotspot
+          # Direct Hotspot
           svc wifi enable 2>/dev/null || true
           cmd wifi start-softap Vince_Beast_AP open 2>/dev/null || ifconfig wlan0 up 2>/dev/null || true
 
-          # D. Enable Bluetooth Receiver (Audio Sink)
-          svc bluetooth enable
+          # Direct Bluetooth Receiver
+          svc bluetooth enable 2>/dev/null || true
           sleep 2
           bluetoothctl power on 2>/dev/null || true
           bluetoothctl discoverable on 2>/dev/null || true
           bluetoothctl pairable on 2>/dev/null || true
 
-          # E. Web UI Server
-          python3 /vince_beast/web_ui/server.py &
-          
-          echo "Vince Beast Gateway Native Root Init Complete!"
+          # Web Server
+          python3 /system/web_ui/server.py &
           SCRIPT
-          chmod +x work/vince_beast/init_gateway.sh
+          chmod 755 system/bin/vince_init.sh
 
-      - name: Package Output Boot Image
-        run: |
-          cp work/boot.img output/vince-beast-ultimate-boot.img
-          sudo chmod -R 777 output
+          cat << 'INITRC' > system/etc/init/vince_gateway.rc
+          on property:sys.boot_completed=1
+              exec u:r:init:s0 root root -- /system/bin/vince_init.sh
+          INITRC
+          chmod 644 system/etc/init/vince_gateway.rc
+
+          # --- 6. PACKAGING WITH MAXIMUM COMPRESSION ---
+          echo "Packaging Ultra-Lite Headless ZIP..."
+          zip -9 -r ../../output/vince-ultralite-beast-installer.zip .
+          cd ../..
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-beast-ultimate-suite
+          name: vince-ultralite-beast-installer
           path: output/
