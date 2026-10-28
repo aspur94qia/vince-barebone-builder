@@ -31,8 +31,6 @@ jobs:
           cd imagebuilder
           
           mkdir -p tmp
-          
-          # 1. Buat direktori files & root installer
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
           mkdir -p files/etc/bluetooth
@@ -41,34 +39,34 @@ jobs:
           mkdir -p files/etc/crontabs
           mkdir -p files/root/extra_packages
 
-          # 2. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
+          # 1. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
           
-          # 3. Download IPK tambahan ke dalam /root/extra_packages agar ikut terbungkus ke boot.img
+          # 2. Download IPK tambahan ke dalam /root/extra_packages
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
 
-          # 4. Konfigurasi Bluetooth Speaker
+          # 3. Konfigurasi Bluetooth Audio Receiver (A2DP Sink)
           cat << 'BTCONF' > files/etc/bluetooth/main.conf
           [General]
-          Name = OpenWrt Vince Speaker
-          Class = 0x240404
+          Name = OpenWrt Vince Audio Receiver
+          Class = 0x20041C
           DiscoverableTimeout = 0
           PairableTimeout = 0
           BTCONF
 
-          # 5. Skrip First Boot (Auto Install IPK, Auto Hotspot, Auto TTL 64, Auto SIM, Power Save & Auto Reboot Jam 4 Pagi)
+          # 4. Skrip First Boot (Bluetooth Receiver + Auto Switch Speaker/Headset)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
-          # Auto Install IPK ekstra jika ada
+          # Auto Install IPK ekstra
           if [ -d /root/extra_packages ]; then
             opkg install /root/extra_packages/*.ipk || true
           fi
           
-          # Auto TTL 64 Bypass via iptables
+          # Auto TTL 64 Bypass
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
@@ -81,7 +79,7 @@ jobs:
           uci set network.wan.autoconnect='1'
           uci commit network
           
-          # Buat & Paksa Aktifkan Wi-Fi Hotspot OpenWrt-Vince
+          # Auto Wi-Fi Hotspot
           wifi detect > /etc/config/wireless || true
           uci set wireless.radio0.disabled='0'
           uci set wireless.default_radio0.mode='ap'
@@ -90,24 +88,46 @@ jobs:
           uci commit wireless
           wifi reload || true
           
-          # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
+          # Matikan Backlight Layar Otomatis
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
           
-          # Auto Reboot Tiap Jam 04:00 Pagi
+          # Auto Reboot Jam 4 Pagi
           echo "0 4 * * * /sbin/reboot" >> /etc/crontabs/root
           
-          # Start Bluetooth Qualcomm & Auto Discoverable
+          # Inisialisasi Hardware Bluetooth Qualcomm
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          bluealsad -p a2dp-sink &
+          # Run BlueALSA Receiver Daemon (Mode A2DP Sink)
+          bluealsad -p a2dp-sink --a2dp-force-audio-cd &
           sleep 2
+          
           bluetoothctl power on
           bluetoothctl pairable on
           bluetoothctl discoverable on
           bluetoothctl agent NoInputNoOutput
           bluetoothctl default-agent
+          
+          # Skrip Auto-Detect Headset / Speaker ALSA Routing
+          cat << 'AUDIOSWITCH' > /usr/bin/auto-audio-switch.sh
+          #!/bin/sh
+          while true; do
+            HEADSET_CONNECTED=$(amixer sget 'Headphone Jack' 2>/dev/null | grep -i 'Item0:' | grep -i 'on')
+            if [ -n "$HEADSET_CONNECTED" ]; then
+              amixer sset 'RX INT DAC' on || true
+              amixer sset 'Headphone' on || true
+              amixer sset 'Speaker' off || true
+            else
+              amixer sset 'RX INT DAC' on || true
+              amixer sset 'Speaker' on || true
+              amixer sset 'Headphone' off || true
+            fi
+            sleep 3
+          done
+          AUDIOSWITCH
+          chmod +x /usr/bin/auto-audio-switch.sh
+          /usr/bin/auto-audio-switch.sh &
           
           /etc/init.d/modemmanager enable
           /etc/init.d/modemmanager start
@@ -120,7 +140,6 @@ jobs:
         run: |
           cd imagebuilder
           
-          # Seluruh paket utama milikmu + paket gokil (adguardhome, aria2, ariang, mwan3, watchcat, wireguard, netdata, eqos, vnstat, iperf3, nmap, tcpdump, screen, tmux)
           PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop luci-app-adguardhome luci-app-aria2 luci-app-ariang luci-app-mwan3 luci-app-watchcat luci-app-wireguard luci-app-netdata luci-app-eqos luci-app-vnstat iperf3 tcpdump nmap screen tmux -ppp -ppp-mod-pppoe"
           
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
@@ -132,14 +151,6 @@ jobs:
           FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
           FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
           
-          echo "Found Kernel: $FIND_KERNEL"
-          echo "Found Initrd: $FIND_INITRD"
-          
-          if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
-            echo "ERROR: Kernel or Ramdisk not found!"
-            exit 1
-          fi
-
           mkbootimg \
             --kernel "$FIND_KERNEL" \
             --ramdisk "$FIND_INITRD" \
