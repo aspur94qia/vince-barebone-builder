@@ -1,4 +1,4 @@
-name: OpenWrt ImageBuilder Vince (All Packages Included)
+name: OpenWrt Source Build Vince (Fix Wi-Fi & Bluetooth Hardware)
 
 on:
   push:
@@ -12,63 +12,105 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Environment & Dependencies
+      - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev xsltproc rsync unzip python3 python3-pip mkbootimg android-sdk-libsparse-utils android-sdk-platform-tools-common wget file
-          pip3 install pycryptodome
+          sudo apt-get install -y build-essential clang llvm gcc-multilib g++-multilib gettext actool libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget git mkbootimg
 
-      - name: Download & Extract ImageBuilder 22.03.7
+      - name: Clone OpenWrt Source 22.03
         run: |
-          IB_URL="https://archive.openwrt.org/releases/22.03.7/targets/armvirt/64/openwrt-imagebuilder-22.03.7-armvirt-64.Linux-x86_64.tar.xz"
-          wget -q "$IB_URL" -O ib.tar.xz
-          
-          mkdir -p imagebuilder
-          tar -xf ib.tar.xz -C imagebuilder --strip-components=1
+          git clone -b openwrt-22.03 https://github.com/openwrt/openwrt.git openwrt-src
+          cd openwrt-src
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
-      - name: Prepare Custom Files, Extra IPKs & Firmware
+      - name: Inject Configuration & Custom Drivers
         run: |
-          cd imagebuilder
+          cd openwrt-src
           
-          mkdir -p tmp
+          # Setup Config untuk Target Qualcomm MSM8953 / armvirt dengan Driver Fisik
+          cat << 'CONF' > .config
+          CONFIG_TARGET_armvirt=y
+          CONFIG_TARGET_armvirt_64=y
+          CONFIG_TARGET_ARCH_PACKAGES="aarch64_cortex-a53"
+          CONFIG_TARGET_ROOTFS_EXT4FS=y
+          CONFIG_TARGET_ROOTFS_PARTSIZE=512
+          
+          # Kernel Drivers Wi-Fi & Bluetooth Qualcomm
+          CONFIG_PACKAGE_kmod-wcn36xx=y
+          CONFIG_PACKAGE_kmod-mac80211=y
+          CONFIG_PACKAGE_kmod-cfg80211=y
+          CONFIG_PACKAGE_kmod-bluetooth=y
+          CONFIG_PACKAGE_kmod-btqcomsds=y
+          CONFIG_PACKAGE_wpad-basicd=y
+          
+          # Audio Stack ALSA
+          CONFIG_PACKAGE_kmod-sound-core=y
+          CONFIG_PACKAGE_alsa-utils=y
+          CONFIG_PACKAGE_bluez-daemon=y
+          CONFIG_PACKAGE_bluez-utils=y
+          
+          # USB Gadget RNDIS
+          CONFIG_PACKAGE_kmod-usb-net-rndis=y
+          CONFIG_PACKAGE_kmod-usb-gadget-eth=y
+          
+          # Paket Utama & Network Tools
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_modemmanager=y
+          CONFIG_PACKAGE_luci-proto-modemmanager=y
+          CONFIG_PACKAGE_aria2=y
+          CONFIG_PACKAGE_luci-app-mwan3=y
+          CONFIG_PACKAGE_luci-app-watchcat=y
+          CONFIG_PACKAGE_luci-app-wireguard=y
+          CONFIG_PACKAGE_luci-app-vnstat=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_tmux=y
+          CONF
+          
+          make defconfig
+
+      - name: Prepare Custom Files & Boot Script
+        run: |
+          cd openwrt-src
           mkdir -p files/lib/firmware/qcom
           mkdir -p files/lib/firmware/wcn36xx
-          mkdir -p files/etc/bluetooth
           mkdir -p files/etc/uci-defaults
           mkdir -p files/etc/config
-          mkdir -p files/etc/crontabs
+          mkdir -p files/etc/bluetooth
           mkdir -p files/root/extra_packages
 
-          # 1. Download Firmware Wi-Fi WCN36xx & Bluetooth Qualcomm
+          # Download Firmware Qualcomm Fisik
           wget -q -O files/lib/firmware/qcom/rampatch_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/rampatch_00230302.bin || true
           wget -q -O files/lib/firmware/qcom/nvm_00230302.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/nvm_00230302.bin || true
           wget -q -O files/lib/firmware/wcn36xx/wcn3680_qcom_wcnss.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/wcn36xx/wcn3680_qcom_wcnss.bin || true
-          
-          # 2. Download IPK tambahan ke dalam /root/extra_packages
+
+          # Extra IPK BlueALSA & QRTR Tools
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/packages/bluealsa_0.10.0-1_aarch64_generic.ipk || true
           wget -q -P files/root/extra_packages/ https://downloads.openwrt.org/releases/22.03.7/packages/aarch64_generic/base/qrtr-tools_1.0-1_aarch64_generic.ipk || true
 
-          # 3. Konfigurasi Bluetooth Audio Receiver (A2DP Sink)
+          # Bluetooth Configuration
           echo "[General]" > files/etc/bluetooth/main.conf
           echo "Name = OpenWrt Vince Audio Receiver" >> files/etc/bluetooth/main.conf
           echo "Class = 0x20041C" >> files/etc/bluetooth/main.conf
           echo "DiscoverableTimeout = 0" >> files/etc/bluetooth/main.conf
           echo "PairableTimeout = 0" >> files/etc/bluetooth/main.conf
 
-          # 4. Skrip First Boot (Auto Hotspot, Auto SIM, BT Receiver, Auto Switch Headset/Speaker)
+          # Skrip First Boot (Paksa Binding Kernel Module & Hotspot)
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
-          # Auto Install IPK ekstra jika ada
+          # Force Load Wi-Fi & USB Drivers
+          modprobe wcn36xx || true
+          modprobe g_ether || true
+          
           if [ -d /root/extra_packages ]; then
             opkg install /root/extra_packages/*.ipk || true
           fi
           
-          # Auto TTL 64 Bypass via iptables
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
-          # Auto-connect SIM Card
           uci set network.wan=interface
           uci set network.wan.proto='modemmanager'
           uci set network.wan.apn='internet'
@@ -77,7 +119,6 @@ jobs:
           uci set network.wan.autoconnect='1'
           uci commit network
           
-          # Buat & Paksa Aktifkan Wi-Fi Hotspot OpenWrt-Vince
           wifi detect > /etc/config/wireless || true
           uci set wireless.radio0.disabled='0'
           uci set wireless.default_radio0.mode='ap'
@@ -86,18 +127,13 @@ jobs:
           uci commit wireless
           wifi reload || true
           
-          # Matikan Backlight Layar Otomatis (HP Adem & Baterai Awet)
           echo 0 > /sys/class/backlight/panel0-backlight/brightness || true
-          
-          # Auto Reboot Tiap Jam 04:00 Pagi
           echo "0 4 * * * /sbin/reboot" >> /etc/crontabs/root
           
-          # Start Bluetooth Qualcomm & Auto Discoverable
           hciattach -s 115200 /dev/ttyHS0 qca 3000000 flow || true
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          # Run BlueALSA Receiver Daemon (Mode A2DP Sink)
           bluealsad -p a2dp-sink --a2dp-force-audio-cd &
           sleep 2
           
@@ -107,7 +143,6 @@ jobs:
           bluetoothctl agent NoInputNoOutput
           bluetoothctl default-agent
           
-          # Skrip Auto-Detect Headset / Speaker ALSA Routing
           cat << 'AUDIOSWITCH' > /usr/bin/auto-audio-switch.sh
           #!/bin/sh
           while true; do
@@ -134,32 +169,19 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Full Image with Native Compatible Packages
+      - name: Compile OpenWrt Kernel & Rootfs
         run: |
-          cd imagebuilder
-          
-          # Paksa ubah ukuran partisi rootfs langsung di file config ImageBuilder
-          sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=512/' .config || echo "CONFIG_TARGET_ROOTFS_PARTSIZE=512" >> .config
-          
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop aria2 luci-app-mwan3 luci-app-watchcat luci-app-wireguard luci-app-vnstat iperf3 tcpdump nmap screen tmux -ppp -ppp-mod-pppoe"
-          
-          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
+          cd openwrt-src
+          make download -j$(nproc)
+          make -j$(nproc) || make -j1 V=s
 
       - name: Pack to Android boot.img
         run: |
           mkdir -p output
           
-          FIND_KERNEL=$(find imagebuilder/bin/targets/armvirt/64/ -type f -name "*-Image" | head -n 1)
-          FIND_INITRD=$(find imagebuilder/bin/targets/armvirt/64/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
+          FIND_KERNEL=$(find openwrt-src/bin/targets/ -type f -name "*-Image" -o -name "zImage" | head -n 1)
+          FIND_INITRD=$(find openwrt-src/bin/targets/ -type f \( -name "*-rootfs.cpio.gz" -o -name "*-ext4.img.gz" -o -name "*-rootfs.img" \) | head -n 1)
           
-          echo "Found Kernel: $FIND_KERNEL"
-          echo "Found Initrd: $FIND_INITRD"
-          
-          if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
-            echo "ERROR: Kernel or Ramdisk not found!"
-            exit 1
-          fi
-
           mkbootimg \
             --kernel "$FIND_KERNEL" \
             --ramdisk "$FIND_INITRD" \
