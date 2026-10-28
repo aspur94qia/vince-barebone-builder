@@ -138,10 +138,12 @@ jobs:
         run: |
           cd imagebuilder
           
+          # Paksa ubah ukuran partisi rootfs langsung di file config ImageBuilder
+          sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=512/' .config || echo "CONFIG_TARGET_ROOTFS_PARTSIZE=512" >> .config
+          
           PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop aria2 luci-app-mwan3 luci-app-watchcat luci-app-wireguard luci-app-vnstat iperf3 tcpdump nmap screen tmux -ppp -ppp-mod-pppoe"
           
-          # Tambahkan ROOTFS_PARTSIZE=512 untuk memperbesar kapasitas partisi rootfs
-          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files" CONFIG_TARGET_ROOTFS_PARTSIZE=512
+          make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
       - name: Pack to Android boot.img
         run: |
