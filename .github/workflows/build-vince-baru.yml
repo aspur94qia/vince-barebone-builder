@@ -31,7 +31,7 @@ jobs:
           
           ./scripts/feeds update -a
           
-          # Hapus paket bermasalah BESERTA aplikasi LuCI penyertanya agar tidak ada dependensi patah
+          # Hapus paket bermasalah BESERTA aplikasi LuCI penyertanya
           rm -rf feeds/packages/net/fwknop
           rm -rf feeds/luci/applications/luci-app-fwknopd
           rm -rf feeds/packages/sound/squeezelite
@@ -95,17 +95,15 @@ jobs:
         run: |
           cd openwrt
           
-          # TAHAP 1: Kunci Target Armvirt 64-bit secara murni lebih dulu
-          cat << 'TARGETCONF' > .config
+          cat << 'ALLCONF' > .config
+          # Kunci Board & Subtarget Armvirt 64-bit
+          CONFIG_TARGET_BOARD="armvirt"
+          CONFIG_TARGET_SUBTARGET="64"
+          CONFIG_TARGET_PROFILE="Default"
           CONFIG_TARGET_armvirt=y
           CONFIG_TARGET_armvirt_64=y
           CONFIG_TARGET_armvirt_64_Default=y
-          TARGETCONF
           
-          make defconfig
-          
-          # TAHAP 2: Masukkan daftar paket aplikasi tambahan
-          cat << 'PKGCONF' >> .config
           # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
           CONFIG_PACKAGE_modemmanager=y
           CONFIG_PACKAGE_luci-proto-modemmanager=y
@@ -179,7 +177,7 @@ jobs:
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_wget-ssl=y
           CONFIG_PACKAGE_bash=y
-          PKGCONF
+          ALLCONF
           
           make defconfig
           
