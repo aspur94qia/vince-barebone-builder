@@ -38,15 +38,20 @@ jobs:
           
           ./scripts/feeds install -a
           
-          # Clone Tema Argon & Tools Tambahan (ModemBand, SMS Tool, ATCommands, OpenClash, Passwall, File Manager)
-          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon || true
-          git clone --depth 1 https://github.com/4230/luci-app-modemband.git package/luci-app-modemband || true
-          git clone --depth 1 https://github.com/4230/luci-app-sms-tool.git package/luci-app-sms-tool || true
-          git clone --depth 1 https://github.com/kostevanchuk/luci-app-atcommands.git package/luci-app-atcommands || true
-          git clone --depth 1 https://github.com/vernesong/OpenClash.git package/luci-app-openclash || true
-          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall.git package/passwall || true
-          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/passwall-packages || true
-          git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/luci-app-filemanager || true
+          # Clone Tema Argon & Tools Tambahan ke folder custom
+          mkdir -p package/custom
+          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/custom/luci-theme-argon || true
+          git clone --depth 1 https://github.com/4230/luci-app-modemband.git package/custom/luci-app-modemband || true
+          git clone --depth 1 https://github.com/4230/luci-app-sms-tool.git package/custom/luci-app-sms-tool || true
+          git clone --depth 1 https://github.com/kostevanchuk/luci-app-atcommands.git package/custom/luci-app-atcommands || true
+          git clone --depth 1 https://github.com/vernesong/OpenClash.git package/custom/luci-app-openclash || true
+          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall.git package/custom/passwall || true
+          git clone --depth 1 https://github.com/xiaorouji/openwrt-passwall-packages.git package/custom/passwall-packages || true
+          git clone --depth 1 https://github.com/sbwml/luci-app-filemanager.git package/custom/luci-app-filemanager || true
+
+          # Hapus paket duplikat dari passwall-packages yang sering bentrok dengan official feeds
+          rm -rf package/custom/passwall-packages/chinadns-ng
+          rm -rf package/custom/passwall-packages/dns2tcp
 
       - name: Inject Firmware, Auto Configs, Auto TTL & Init Scripts
         run: |
@@ -74,7 +79,7 @@ jobs:
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
           
-          # Auto TTL 64 Bypass (Aman Tethering / Hotspot)
+          # Auto TTL 64 Bypass via nftables / iptables
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64 || true
           iptables -t mangle -A PREROUTING -j TTL --ttl-set 64 || true
           
@@ -119,101 +124,85 @@ jobs:
         run: |
           cd openwrt
           
-          # Dapatkan konfigurasi seed utuh (Target + Profile + Paket)
-          cat << 'ALLCONF' > .config
-          # Target Hardware Armvirt 64-bit
-          CONFIG_TARGET_armvirt=y
-          CONFIG_TARGET_armvirt_64=y
-          CONFIG_TARGET_armvirt_64_Default=y
+          # 1. Kunci Target Armvirt 64-bit Terlebih Dahulu
+          echo "CONFIG_TARGET_armvirt=y" > .config
+          echo "CONFIG_TARGET_armvirt_64=y" >> .config
+          echo "CONFIG_TARGET_armvirt_64_Default=y" >> .config
+          make defconfig
 
-          # Wi-Fi Userspace (wpad-mbedtls sudah mencakup hostapd)
-          CONFIG_PACKAGE_wpad-mbedtls=y
-
-          # Driver Modem SIM Card Internal Qualcomm & TTL Fix
-          CONFIG_PACKAGE_modemmanager=y
-          CONFIG_PACKAGE_luci-proto-modemmanager=y
-          CONFIG_PACKAGE_libqmi=y
-          CONFIG_PACKAGE_qmi-utils=y
-          CONFIG_PACKAGE_wwan=y
-          CONFIG_PACKAGE_qrtr-tools=y
-          CONFIG_PACKAGE_iptables-mod-ipopt=y
-          CONFIG_PACKAGE_kmod-ipt-ipopt=y
-
-          # Modem & SIM Tools (Band Locker, SMS/USSD, AT Commands)
-          CONFIG_PACKAGE_luci-app-modemband=y
-          CONFIG_PACKAGE_luci-app-sms-tool=y
-          CONFIG_PACKAGE_luci-app-atcommands=y
-          CONFIG_PACKAGE_sms-tool=y
-
-          # Tunneling & Injeksi Internet
-          CONFIG_PACKAGE_luci-app-openclash=y
-          CONFIG_PACKAGE_luci-app-passwall=y
-
-          # Optimasi TCP BBR, SmartDNS & ZRAM Swap
-          CONFIG_PACKAGE_kmod-tcp-bbr=y
-          CONFIG_PACKAGE_smartdns=y
-          CONFIG_PACKAGE_luci-app-smartdns=y
-          CONFIG_PACKAGE_zram-swap=y
-          CONFIG_PACKAGE_kmod-zram=y
-
-          # Sound & Bluetooth Userspace Stack
-          CONFIG_PACKAGE_alsa-utils=y
-          CONFIG_PACKAGE_alsa-ucm-conf=y
-          CONFIG_PACKAGE_bluez-daemon=y
-          CONFIG_PACKAGE_bluez-utils=y
-          CONFIG_PACKAGE_bluealsa=y
-
-          # LuCI UI, Argon Theme, Web File Manager & Web Terminal
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-ssl=y
-          CONFIG_PACKAGE_luci-theme-argon=y
-          CONFIG_PACKAGE_luci-app-ttyd=y
-          CONFIG_PACKAGE_luci-app-filemanager=y
-
-          # Wi-Fi Repeater (WISP) & Multi-WAN Switcher
-          CONFIG_PACKAGE_travelmate=y
-          CONFIG_PACKAGE_luci-app-travelmate=y
-          CONFIG_PACKAGE_relayd=y
-          CONFIG_PACKAGE_luci-proto-relay=y
-          CONFIG_PACKAGE_mwan3=y
-          CONFIG_PACKAGE_luci-app-mwan3=y
-
-          # USB Tethering & Support Modem USB
-          CONFIG_PACKAGE_kmod-usb-net=y
-          CONFIG_PACKAGE_kmod-usb-net-rndis=y
-          CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
-          CONFIG_PACKAGE_kmod-usb-serial=y
-          CONFIG_PACKAGE_kmod-usb-serial-option=y
-          CONFIG_PACKAGE_usb-modeswitch=y
-
-          # Storage & Partisi eMMC
-          CONFIG_PACKAGE_block-mount=y
-          CONFIG_PACKAGE_kmod-fs-ext4=y
-          CONFIG_PACKAGE_e2fsprogs=y
-          CONFIG_PACKAGE_fdisk=y
-          CONFIG_PACKAGE_luci-app-diskman=y
-          CONFIG_PACKAGE_luci-app-samba4=y
-          CONFIG_PACKAGE_luci-app-aria2=y
-
-          # Bandwidth Monitor, Security & VPN Remote
-          CONFIG_PACKAGE_vnstat=y
-          CONFIG_PACKAGE_luci-app-vnstat=y
-          CONFIG_PACKAGE_luci-app-nlbwmon=y
-          CONFIG_PACKAGE_luci-app-adblock=y
-          CONFIG_PACKAGE_https-dns-proxy=y
-          CONFIG_PACKAGE_luci-app-https-dns-proxy=y
-          CONFIG_PACKAGE_sqm=y
-          CONFIG_PACKAGE_luci-app-sqm=y
-          CONFIG_PACKAGE_tailscale=y
-          CONFIG_PACKAGE_luci-app-wireguard=y
-
-          # Utilitas Terminal CLI
-          CONFIG_PACKAGE_nano=y
-          CONFIG_PACKAGE_htop=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget-ssl=y
-          CONFIG_PACKAGE_bash=y
-          ALLCONF
+          # 2. Aktifkan Seluruh Paket Menggunakan scripts/config
+          ./scripts/config --enable CONFIG_PACKAGE_wpad-mbedtls
+          ./scripts/config --enable CONFIG_PACKAGE_modemmanager
+          ./scripts/config --enable CONFIG_PACKAGE_luci-proto-modemmanager
+          ./scripts/config --enable CONFIG_PACKAGE_libqmi
+          ./scripts/config --enable CONFIG_PACKAGE_qmi-utils
+          ./scripts/config --enable CONFIG_PACKAGE_wwan
+          ./scripts/config --enable CONFIG_PACKAGE_qrtr-tools
+          
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-modemband
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-sms-tool
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-atcommands
+          ./scripts/config --enable CONFIG_PACKAGE_sms-tool
+          
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-openclash
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-passwall
+          
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-tcp-bbr
+          ./scripts/config --enable CONFIG_PACKAGE_smartdns
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-smartdns
+          ./scripts/config --enable CONFIG_PACKAGE_zram-swap
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-zram
+          
+          ./scripts/config --enable CONFIG_PACKAGE_alsa-utils
+          ./scripts/config --enable CONFIG_PACKAGE_alsa-ucm-conf
+          ./scripts/config --enable CONFIG_PACKAGE_bluez-daemon
+          ./scripts/config --enable CONFIG_PACKAGE_bluez-utils
+          ./scripts/config --enable CONFIG_PACKAGE_bluealsa
+          
+          ./scripts/config --enable CONFIG_PACKAGE_luci
+          ./scripts/config --enable CONFIG_PACKAGE_luci-ssl
+          ./scripts/config --enable CONFIG_PACKAGE_luci-theme-argon
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-ttyd
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-filemanager
+          
+          ./scripts/config --enable CONFIG_PACKAGE_travelmate
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-travelmate
+          ./scripts/config --enable CONFIG_PACKAGE_relayd
+          ./scripts/config --enable CONFIG_PACKAGE_luci-proto-relay
+          ./scripts/config --enable CONFIG_PACKAGE_mwan3
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-mwan3
+          
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-usb-net
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-usb-net-rndis
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-usb-net-cdc-ether
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-usb-serial
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-usb-serial-option
+          ./scripts/config --enable CONFIG_PACKAGE_usb-modeswitch
+          
+          ./scripts/config --enable CONFIG_PACKAGE_block-mount
+          ./scripts/config --enable CONFIG_PACKAGE_kmod-fs-ext4
+          ./scripts/config --enable CONFIG_PACKAGE_e2fsprogs
+          ./scripts/config --enable CONFIG_PACKAGE_fdisk
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-diskman
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-samba4
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-aria2
+          
+          ./scripts/config --enable CONFIG_PACKAGE_vnstat
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-vnstat
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-nlbwmon
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-adblock
+          ./scripts/config --enable CONFIG_PACKAGE_https-dns-proxy
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-https-dns-proxy
+          ./scripts/config --enable CONFIG_PACKAGE_sqm
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-sqm
+          ./scripts/config --enable CONFIG_PACKAGE_tailscale
+          ./scripts/config --enable CONFIG_PACKAGE_luci-app-wireguard
+          
+          ./scripts/config --enable CONFIG_PACKAGE_nano
+          ./scripts/config --enable CONFIG_PACKAGE_htop
+          ./scripts/config --enable CONFIG_PACKAGE_curl
+          ./scripts/config --enable CONFIG_PACKAGE_wget-ssl
+          ./scripts/config --enable CONFIG_PACKAGE_bash
 
           make defconfig
 
