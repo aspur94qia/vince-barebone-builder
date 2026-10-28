@@ -66,7 +66,7 @@ jobs:
           /etc/init.d/bluetooth enable
           /etc/init.d/bluetooth start
           
-          # Jalankan Service Receiver & Agent Auto-Accept Pairing
+          # Service Receiver & Agent Auto-Accept Pairing
           bluealsad -p a2dp-sink &
           sleep 2
           bluetoothctl power on
@@ -86,87 +86,94 @@ jobs:
         run: |
           cd openwrt
           
-          # Target Hardware Armvirt 64-bit
-          echo "CONFIG_TARGET_armvirt=y" > .config
-          echo "CONFIG_TARGET_armvirt_64=y" >> .config
-          echo "CONFIG_TARGET_BOARD=\"armvirt\"" >> .config
-          echo "CONFIG_TARGET_SUBTARGET=\"64\"" >> .config
+          # Lock Target Armvirt 64-bit secara Presisi
+          cat << 'CONF' > .config
+          CONFIG_TARGET_armvirt=y
+          CONFIG_TARGET_armvirt_64=y
+          CONFIG_TARGET_armvirt_64_Default=y
           
           # Driver Modem SIM Card Internal Qualcomm (QMI & ModemManager)
-          echo "CONFIG_PACKAGE_modemmanager=y" >> .config
-          echo "CONFIG_PACKAGE_luci-proto-modemmanager=y" >> .config
-          echo "CONFIG_PACKAGE_libqmi=y" >> .config
-          echo "CONFIG_PACKAGE_qmi-utils=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-qmi-wwan=y" >> .config
-          echo "CONFIG_PACKAGE_wwan=y" >> .config
-          echo "CONFIG_PACKAGE_qrtr-tools=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-qrtr=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-qrtr-smd=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-qrtr-tun=y" >> .config
+          CONFIG_PACKAGE_modemmanager=y
+          CONFIG_PACKAGE_luci-proto-modemmanager=y
+          CONFIG_PACKAGE_libqmi=y
+          CONFIG_PACKAGE_qmi-utils=y
+          CONFIG_PACKAGE_kmod-qmi-wwan=y
+          CONFIG_PACKAGE_wwan=y
+          CONFIG_PACKAGE_qrtr-tools=y
+          CONFIG_PACKAGE_kmod-qrtr=y
+          CONFIG_PACKAGE_kmod-qrtr-smd=y
+          CONFIG_PACKAGE_kmod-qrtr-tun=y
           
           # Hardware Suara & Bluetooth Internal
-          echo "CONFIG_PACKAGE_kmod-sound-core=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-sound-soc-core=y" >> .config
-          echo "CONFIG_PACKAGE_alsa-utils=y" >> .config
-          echo "CONFIG_PACKAGE_alsa-ucm-conf=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-bluetooth=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-bt-hci-uart=y" >> .config
-          echo "CONFIG_PACKAGE_bluez-daemon=y" >> .config
-          echo "CONFIG_PACKAGE_bluez-utils=y" >> .config
-          echo "CONFIG_PACKAGE_bluealsa=y" >> .config
+          CONFIG_PACKAGE_kmod-sound-core=y
+          CONFIG_PACKAGE_kmod-sound-soc-core=y
+          CONFIG_PACKAGE_alsa-utils=y
+          CONFIG_PACKAGE_alsa-ucm-conf=y
+          CONFIG_PACKAGE_kmod-bluetooth=y
+          CONFIG_PACKAGE_kmod-bt-hci-uart=y
+          CONFIG_PACKAGE_bluez-daemon=y
+          CONFIG_PACKAGE_bluez-utils=y
+          CONFIG_PACKAGE_bluealsa=y
           
           # LuCI UI & Web Terminal
-          echo "CONFIG_PACKAGE_luci=y" >> .config
-          echo "CONFIG_PACKAGE_luci-ssl=y" >> .config
-          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-app-ttyd=y
           
           # Wi-Fi & Repeater (WISP)
-          echo "CONFIG_PACKAGE_wpad-mbedtls=y" >> .config
-          echo "CONFIG_PACKAGE_travelmate=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-travelmate=y" >> .config
-          echo "CONFIG_PACKAGE_relayd=y" >> .config
-          echo "CONFIG_PACKAGE_luci-proto-relay=y" >> .config
+          CONFIG_PACKAGE_wpad-mbedtls=y
+          CONFIG_PACKAGE_travelmate=y
+          CONFIG_PACKAGE_luci-app-travelmate=y
+          CONFIG_PACKAGE_relayd=y
+          CONFIG_PACKAGE_luci-proto-relay=y
           
           # USB Tethering & Support Modem USB
-          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-serial=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-serial-option=y" >> .config
-          echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
+          CONFIG_PACKAGE_kmod-usb-net=y
+          CONFIG_PACKAGE_kmod-usb-net-rndis=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+          CONFIG_PACKAGE_kmod-usb-serial=y
+          CONFIG_PACKAGE_kmod-usb-serial-option=y
+          CONFIG_PACKAGE_usb-modeswitch=y
           
           # Storage & Partisi eMMC
-          echo "CONFIG_PACKAGE_block-mount=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
-          echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
-          echo "CONFIG_PACKAGE_fdisk=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-samba4=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-aria2=y" >> .config
+          CONFIG_PACKAGE_block-mount=y
+          CONFIG_PACKAGE_kmod-fs-ext4=y
+          CONFIG_PACKAGE_e2fsprogs=y
+          CONFIG_PACKAGE_fdisk=y
+          CONFIG_PACKAGE_luci-app-diskman=y
+          CONFIG_PACKAGE_luci-app-samba4=y
+          CONFIG_PACKAGE_luci-app-aria2=y
           
           # Network Switcher, Bandwidth Monitor & Security
-          echo "CONFIG_PACKAGE_mwan3=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
-          echo "CONFIG_PACKAGE_vnstat2=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-vnstat2=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-nlbwmon=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-adblock=y" >> .config
-          echo "CONFIG_PACKAGE_https-dns-proxy=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-https-dns-proxy=y" >> .config
-          echo "CONFIG_PACKAGE_sqm=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-sqm=y" >> .config
-          echo "CONFIG_PACKAGE_tailscale=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-wireguard=y" >> .config
+          CONFIG_PACKAGE_mwan3=y
+          CONFIG_PACKAGE_luci-app-mwan3=y
+          CONFIG_PACKAGE_vnstat2=y
+          CONFIG_PACKAGE_luci-app-vnstat2=y
+          CONFIG_PACKAGE_luci-app-nlbwmon=y
+          CONFIG_PACKAGE_luci-app-adblock=y
+          CONFIG_PACKAGE_https-dns-proxy=y
+          CONFIG_PACKAGE_luci-app-https-dns-proxy=y
+          CONFIG_PACKAGE_sqm=y
+          CONFIG_PACKAGE_luci-app-sqm=y
+          CONFIG_PACKAGE_tailscale=y
+          CONFIG_PACKAGE_luci-app-wireguard=y
           
           # Utilitas Terminal
-          echo "CONFIG_PACKAGE_nano=y" >> .config
-          echo "CONFIG_PACKAGE_htop=y" >> .config
-          echo "CONFIG_PACKAGE_curl=y" >> .config
-          echo "CONFIG_PACKAGE_wget-ssl=y" >> .config
-          echo "CONFIG_PACKAGE_bash=y" >> .config
+          CONFIG_PACKAGE_nano=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_wget-ssl=y
+          CONFIG_PACKAGE_bash=y
+          CONF
           
           make defconfig
+          
+          # Verifikasi Target armvirt terpasang dengan benar
+          if ! grep -q "CONFIG_TARGET_armvirt=y" .config; then
+            echo "ERROR: Target armvirt ter-reset! Memaksa konfigurasi ulang..."
+            exit 1
+          fi
 
       - name: Download Packages
         run: |
@@ -188,8 +195,11 @@ jobs:
           FIND_KERNEL=$(find openwrt/bin/targets/armvirt/ -type f \( -name "Image" -o -name "zImage" -o -name "vmlinux" \) | head -n 1)
           FIND_INITRD=$(find openwrt/bin/targets/armvirt/ -type f \( -name "*rootfs*.cpio.gz" -o -name "*initramfs*.cpio.gz" -o -name "*rootfs*.img" \) | head -n 1)
           
+          echo "Found Kernel: $FIND_KERNEL"
+          echo "Found Initrd: $FIND_INITRD"
+          
           if [ -z "$FIND_KERNEL" ] || [ -z "$FIND_INITRD" ]; then
-            echo "ERROR: Kernel or Ramdisk not found!"
+            echo "ERROR: Kernel or Ramdisk not found inside openwrt/bin/targets/armvirt/!"
             find openwrt/bin/targets/ -type f
             exit 1
           fi
@@ -208,4 +218,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-vince-boot
-          path: output/openwrt-vince-boot.img
+          path: output/output/openwrt-vince-boot.img || output/openwrt-vince-boot.img
