@@ -72,8 +72,6 @@ jobs:
           # 5. Skrip Otomatisasi Boot Pertama
           cat << 'SCRIPT' > files/etc/uci-defaults/99-vince-init
           #!/bin/sh
-          modprobe wcn36xx || true
-          modprobe g_ether || true
           if [ -d /root/extra_packages ]; then
             opkg install /root/extra_packages/*.ipk || true
           fi
@@ -107,10 +105,10 @@ jobs:
           SCRIPT
           chmod +x files/etc/uci-defaults/99-vince-init
 
-      - name: Build Image with All Compatible Packages & Drivers
+      - name: Build Image with All Compatible Packages
         run: |
           cd imagebuilder
-          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-wcn36xx kmod-cfg80211 kmod-mac80211 kmod-usb-gadget-eth kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
+          PACKAGES="luci luci-ssl luci-theme-bootstrap luci-app-ttyd modemmanager luci-proto-modemmanager libqmi qmi-utils wwan wpad-basic kmod-cfg80211 kmod-mac80211 kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-serial kmod-usb-serial-option usb-modeswitch block-mount kmod-fs-ext4 e2fsprogs fdisk luci-app-samba4 alsa-utils alsa-ucm-conf bluez-daemon bluez-utils kmod-tcp-bbr zram-swap kmod-zram wget-ssl curl bash nano htop -ppp -ppp-mod-pppoe"
           make image PROFILE="Default" PACKAGES="$PACKAGES" FILES="files"
 
       - name: Pack to Android boot.img
