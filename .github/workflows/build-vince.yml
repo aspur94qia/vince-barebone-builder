@@ -24,7 +24,7 @@ jobs:
           cd /tmp/busybox_pkg
           apt-get download busybox-static:arm64
           
-          # Ekstrak aman tanpa pusing format kompresi
+          # Ekstrak paket deb
           dpkg-deb -x busybox-static*.deb .
 
       - name: Download LineageOS Vince & Embed All Beast Tools
@@ -38,11 +38,12 @@ jobs:
           # --- 1. EMBED BUSYBOX & TOOLS ROUTER ---
           echo "Embedding ARM64 Static Tools..."
           
-          # Salin BusyBox ARM64 hasil ekstrak dpkg-deb
-          cp /tmp/busybox_pkg/bin/busybox work/vince_beast/system/bin/busybox
+          # Cari lokasi pasti file busybox hasil ekstrak lalu copy ke target
+          BUSYBOX_BIN=$(find /tmp/busybox_pkg -name "busybox" -type f | head -n 1)
+          cp "$BUSYBOX_BIN" work/vince_beast/system/bin/busybox
           chmod +x work/vince_beast/system/bin/busybox
 
-          # Dnsmasq, Hostapd, Dropbear (Gunakan fallback internal jika URL eksternal bermasalah)
+          # Dnsmasq, Hostapd, Dropbear (Fallback internal jika URL eksternal bermasalah)
           wget -O work/vince_beast/system/bin/dnsmasq https://github.com/eugr/dnsmasq-android/raw/master/binary/arm64-v8a/dnsmasq || true
           chmod +x work/vince_beast/system/bin/dnsmasq || true
 
