@@ -64,12 +64,15 @@ jobs:
           sudo umount sys_mnt/
           img2simg system.img system_sparse.img
           
+          # Hapus file sdat lama biar tidak konflik saat kompresi ulang
+          rm -f system.new.dat.br system.transfer.list system.new.dat
+          
           # Salin modul img2sdat lokal ke folder kerja extracted
           cp ../../utils/*.py .
           python3 img2sdat.py system_sparse.img -o . -v 4
           
           brotli -q 11 system.new.dat -o system.new.dat.br
-          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py sdat2img.py
+          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py rangelib.py
           
           zip -9 -r "../../output/vince-mini-headless.zip" boot.img vendor.new.dat.br vendor.transfer.list system.new.dat.br system.transfer.list META-INF/
 
