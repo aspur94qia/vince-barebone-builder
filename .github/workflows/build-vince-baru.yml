@@ -86,11 +86,11 @@ jobs:
 
       - name: Build Image via Official OpenWrt ImageBuilder Container
         run: |
-          # Jalankan container Docker ImageBuilder resmi armvirt/64 versi 23.05
+          # Menggunakan tag versi v23.05.5 yang valid di Docker Hub
           docker run --rm \
             -v "$(pwd)/custom-files:/builder/files" \
             -v "$(pwd)/output-builder:/builder/bin" \
-            openwrt/imagebuilder:openwrt-23.05 armvirt-64 \
+            openwrt/imagebuilder:v23.05.5 armvirt-64 \
             PACKAGES="luci luci-ssl luci-theme-bootstrap modemmanager luci-proto-modemmanager libqmi qmi-utils wwan qrtr-tools wpad-mbedtls block-mount kmod-fs-ext4 e2fsprogs nano htop"
 
       - name: Pack to Android boot.img
