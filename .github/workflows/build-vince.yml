@@ -24,11 +24,13 @@ jobs:
           mkdir -p work/output work/extracted
           cd work
           
+          echo ">>> MENDOWNLOAD BASE ROM LINEAGEOS VINCE..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o rom.zip "$ROM_URL"
           unzip rom.zip boot.img system.new.dat.br system.transfer.list vendor.new.dat.br vendor.transfer.list -d extracted/
           
           cd extracted
+          echo ">>> MENGEKSTRAK RAW IMAGE (SYSTEM & VENDOR)..."
           brotli -d system.new.dat.br -o system.new.dat
           brotli -d vendor.new.dat.br -o vendor.new.dat
           curl -sL -o sdat2img.py https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
@@ -39,7 +41,7 @@ jobs:
           sudo mount -o loop system.img sys_mnt/
           sudo mount -o loop vendor.img vnd_mnt/
           
-          echo "=== A. MEMBUAT SYSTEM 100MB MINIMALIS + WEBUI + TTL SPOOFING ==="
+          echo ">>> [BAGIAN A] INJECT BUSYBOX & WEBUI DASHBOARD..."
           sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
           
           docker pull --platform linux/arm64 busybox:musl
@@ -84,12 +86,27 @@ jobs:
           SH_EOF
           sudo chmod 755 sys_mnt/system/etc/router_init.sh
           
-          echo "=== B. DIET EKSTREM VENDOR (MEMBUANG SAMPAH NON-ESENSIAL) ==="
+          echo ">>> [BAGIAN B] PEMBERSIHAN TOTAL (DIET EKSTREM) & CEGAH BOOTLOOP..."
+          # 1. Bersihkan Partisi System
+          sudo rm -rf sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/product
+          sudo rm -rf sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/framework sys_mnt/system/tts
+          # Matikan Zygote (Pemuat UI) agar kernel tidak bootloop mencari layar
+          sudo rm -f sys_mnt/system/bin/app_process* sys_mnt/system/etc/init/zygote*.rc
+          
+          # 2. Bersihkan Partisi Vendor (Sisa Firmware, Modem & Driver Jaringan)
           sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay
+          
+          echo ">>> [BAGIAN C] ZERO-FILL UNTUK KOMPRESI MAKSIMAL..."
+          # Isi ruang kosong dengan angka nol agar Zip kompresinya sangat kecil
+          sudo dd if=/dev/zero of=sys_mnt/zeroes bs=1M 2>/dev/null || true
+          sudo rm -f sys_mnt/zeroes
+          sudo dd if=/dev/zero of=vnd_mnt/zeroes bs=1M 2>/dev/null || true
+          sudo rm -f vnd_mnt/zeroes
           
           sudo umount sys_mnt/
           sudo umount vnd_mnt/
           
+          echo ">>> RESIZE IMAGE KE UKURAN TERKECIL..."
           e2fsck -fy system.img || true
           resize2fs -M system.img
           e2fsck -fy vendor.img || true
@@ -106,7 +123,7 @@ jobs:
           ui_print("  Vince Slim Headless Router (<200MB)   ");
           ui_print("========================================");
           
-          ui_print("Flashing System...");
+          ui_print("Flashing Slim System...");
           mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/system", "/system");
           package_extract_file("system.img", "/dev/block/bootdevice/by-name/system");
           unmount("/system");
@@ -123,6 +140,7 @@ jobs:
           EOF
 
           cd ..
+          echo ">>> PROSES PACKING FILE ZIP (Level Kompresi 9)..."
           zip -9 -r "output/vince-slim-router.zip" extracted/boot.img extracted/system.img extracted/vendor.img extracted/META-INF
 
       - name: 4. Upload Artifact (<200MB ZIP)
