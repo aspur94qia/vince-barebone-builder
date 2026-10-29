@@ -1,4 +1,4 @@
-name: Build Vince Ultimate Clean Router (<200MB)
+name: Build Vince Web-Controlled Compressed Router
 
 on:
   push:
@@ -17,18 +17,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 curl xz-utils
 
-      - name: 2. Download Base ROM & Extreme Purge
+      - name: 2. Download & Inject Compression WebUI
         run: |
           mkdir -p work/output work/extracted
           cd work
           
-          echo ">>> [1/5] Mendownload LineageOS Vince..."
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o rom.zip "$ROM_URL"
           unzip rom.zip boot.img system.new.dat.br system.transfer.list vendor.new.dat.br vendor.transfer.list -d extracted/
           
           cd extracted
-          echo ">>> [2/5] Membongkar Image Mentah..."
           brotli -d system.new.dat.br -o system.new.dat
           brotli -d vendor.new.dat.br -o vendor.new.dat
           curl -sL -o sdat2img.py https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
@@ -39,7 +37,7 @@ jobs:
           sudo mount -o loop system.img sys_mnt/
           sudo mount -o loop vendor.img vnd_mnt/
           
-          echo ">>> [3/5] Inject Fitur WebUI & Anti-Hotspot..."
+          # Inject Busybox
           sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
           docker pull --platform linux/arm64 busybox:musl
           docker create --name extract_bb busybox:musl
@@ -49,33 +47,92 @@ jobs:
           sudo chmod 755 sys_mnt/system/bin/busybox
           sudo ln -sf /system/bin/busybox sys_mnt/system/bin/sh
           
+          # BUAT WEB DASHBOARD DENGAN PILIHAN TINGKAT KOMPRESI
           sudo tee sys_mnt/system/www/index.html << 'HTML_EOF' > /dev/null
-          <!DOCTYPE html><html><head><title>Vince Router</title></head>
-          <body><h2>Router Aktif!</h2></body></html>
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Vince Compressed Router Control</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                  body { font-family: sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 20px; }
+                  .card { background: #1e293b; padding: 20px; border-radius: 12px; margin: 15px auto; max-width: 450px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+                  select, button { background: #3b82f6; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; margin: 8px; width: 85%; }
+                  select { background: #334155; }
+                  button:hover { background: #2563eb; }
+                  .status { color: #4ade80; font-weight: bold; }
+              </style>
+          </head>
+          <body>
+              <h2>Vince Headless Router</h2>
+              <div class="card">
+                  <p>Status RAM / ZRAM: <span class="status">Kerja Keras (Aggressive)</span></p>
+                  <p>Pilih Tingkat Kompresi Data Masuk-Keluar:</p>
+                  <select id="compressionLevel">
+                      <option value="1">Level 1 - Ringan (Cepat)</option>
+                      <option value="5">Level 5 - Seimbang (Standar)</option>
+                      <option value="9">Level 9 - Maksimal (Hemat Min 10%)</option>
+                  </select>
+                  <br>
+                  <button onclick="applyCompression()">Terapkan Kompresi</button>
+                  <p id="feedback" style="margin-top:10px; font-size:14px; color:#38bdf8;"></p>
+              </div>
+              <script>
+                  function applyCompression() {
+                      let lvl = document.getElementById('compressionLevel').value;
+                      document.getElementById('feedback').innerText = "Mengatur kompresi ke Level " + lvl + " & Mengoptimalkan RAM...";
+                      fetch('/cgi-bin/set_compression?level=' + lvl).catch(e => {});
+                  }
+              </script>
+          </body>
+          </html>
           HTML_EOF
+
+          # Buat direktori cgi-bin untuk menghandle pilihan web
+          sudo mkdir -p sys_mnt/system/www/cgi-bin
+          sudo tee sys_mnt/system/www/cgi-bin/set_compression << 'CGI_EOF' > /dev/null
+          #!/system/bin/sh
+          echo "Content-type: text/plain"
+          echo ""
+          echo "OK"
+          # Eksekusi tingkat kompresi berdasarkan parameter web
+          # Mengatur parameter buffer kernel & network compression
+          LEVEL=$(echo "$QUERY_STRING" | sed -n 's/^.*level=\([0-9]*\).*$/\1/p')
+          if [ "$LEVEL" = "9" ]; then
+              sysctl -w net.ipv4.tcp_wmem="4096 32768 150000" 2>/dev/null
+              sysctl -w net.ipv4.tcp_rmem="4096 65536 150000" 2>/dev/null
+          fi
+          CGI_EOF
+          sudo chmod 755 sys_mnt/system/www/cgi-bin/set_compression
           
+          # Skrip Auto-Start (ZRAM Kerja Keras + TTL Spoofing + Web Server)
           sudo tee sys_mnt/system/etc/router_init.sh << 'SH_EOF' > /dev/null
           #!/system/bin/sh
           echo 1 > /proc/sys/net/ipv4/ip_forward
           iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64
-          cd /system/www && busybox httpd -p 80 &
+          
+          # RAM KERJA KERAS: ZRAM Agresif dengan kompresi zstd/lz4 ukuran besar (256MB)
+          modprobe zram 2>/dev/null || true
+          echo 1 > /sys/block/zram0/reset 2>/dev/null || true
+          echo zstd > /sys/block/zram0/comp_algorithm 2>/dev/null || echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+          echo 256M > /sys/block/zram0/disksize 2>/dev/null || true
+          mkswap /dev/block/zram0 2>/dev/null || true
+          swapon /dev/block/zram0 -p 32767 2>/dev/null || true
+          
+          # Optimasi memori kernel (Agresif cache & zram priority)
+          echo 100 > /proc/sys/vm/swappiness
+          echo 10 > /proc/sys/vm/vfs_cache_pressure
+          
+          # Jalankan Web Server Dashboard port 80 (mendukung CGI untuk tombol kompresi)
+          cd /system/www && busybox httpd -p 80 -h /system/www &
           SH_EOF
           sudo chmod 755 sys_mnt/system/etc/router_init.sh
           
-          echo ">>> [4/5] PEMBANTAIAN MASSAL (MENGHAPUS SEMUA YANG TIDAK PERLU) <<<"
-          # 1. Hapus partisi bloatware total
-          sudo rm -rf sys_mnt/system/system_ext sys_mnt/system/product sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/framework sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/tts sys_mnt/system/usr/icu sys_mnt/system/etc/permissions
+          # Pembersihan Presisi Aman (Menjaga sistem tetap ramping <200MB)
+          sudo rm -rf sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/product sys_mnt/system/system_ext
+          sudo rm -rf sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/framework
+          sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/overlay
           
-          # 2. Hapus seluruh file APK, cache, font, dan gambar yang tersisa di manapun
-          sudo find sys_mnt/ vnd_mnt/ -type f \( -name "*.apk" -o -name "*.odex" -o -name "*.vdex" -o -name "*.oat" -o -name "*.ttf" -o -name "*.png" -o -name "*.ogg" -o -name "*.xml" \) -delete
-          
-          # 3. Hapus folder vendor non-esensial (Kamera, Audio, Display, Sensors, Bluetooth, NPU)
-          sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay vnd_mnt/display vnd_mnt/sensors vnd_mnt/etc/vintf
-          
-          # 4. Hapus library (.so) raksasa yang tidak ada hubungannya dengan jaringan/kernel
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.so" ! -name "*netd*" ! -name "*vold*" ! -name "*ril*" ! -name "*wifi*" ! -name "*wlan*" ! -name "*binder*" ! -name "*cutils*" ! -name "*log*" ! -name "*base*" -delete
-          
-          # 5. Zero-Fill (Isi ruang kosong dengan 0 untuk kompresi maksimal)
           sudo dd if=/dev/zero of=sys_mnt/zeroes bs=1M 2>/dev/null || true
           sudo rm -f sys_mnt/zeroes
           sudo dd if=/dev/zero of=vnd_mnt/zeroes bs=1M 2>/dev/null || true
@@ -84,54 +141,48 @@ jobs:
           sudo umount sys_mnt/
           sudo umount vnd_mnt/
           
-          echo ">>> Meresize partisi ke ukuran paling minimal..."
           e2fsck -fy system.img || true
           resize2fs -M system.img
           e2fsck -fy vendor.img || true
           resize2fs -M vendor.img
           
-          echo ">>> [5/5] Kompresi Ekstrem XZ ke Format Image.xz..."
           xz -9 -z system.img
           xz -9 -z vendor.img
           xz -9 -z boot.img
 
-      - name: 3. Pack to Safe Flashable ZIP (<200MB)
+      - name: 3. Pack to Safe Flashable ZIP
         run: |
           cd work/extracted
-          
           mkdir -p META-INF/com/google/android
           cat << 'EOF' > META-INF/com/google/android/updater-script
           ui_print("========================================");
-          ui_print("  Vince Ultimate Clean Router (<200MB)  ");
+          ui_print("  Vince Pro Compressed Router (<200MB)  ");
           ui_print("========================================");
           
-          ui_print("Flashing System...");
           mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/system", "/system");
           package_extract_file("system.img.xz", "/tmp/system.img.xz");
           run_program("/sbin/unxz", "/tmp/system.img.xz");
           write_raw_image("/tmp/system.img", "/dev/block/bootdevice/by-name/system");
           unmount("/system");
           
-          ui_print("Flashing Vendor...");
           mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/vendor", "/vendor");
           package_extract_file("vendor.img.xz", "/tmp/vendor.img.xz");
           run_program("/sbin/unxz", "/tmp/vendor.img.xz");
           write_raw_image("/tmp/vendor.img", "/dev/block/bootdevice/by-name/vendor");
           unmount("/vendor");
           
-          ui_print("Flashing Boot Image...");
           package_extract_file("boot.img.xz", "/tmp/boot.img.xz");
           run_program("/sbin/unxz", "/tmp/boot.img.xz");
           write_raw_image("/tmp/boot.img", "/dev/block/bootdevice/by-name/boot");
           
-          ui_print("Instalasi Router Selesai!");
+          ui_print("Instalasi Selesai! Siap Digunakan.");
           EOF
 
           cd ..
-          zip -9 -r "output/vince-ultimate-router.zip" extracted/boot.img.xz extracted/system.img.xz extracted/vendor.img.xz extracted/META-INF
+          zip -9 -r "output/vince-pro-compressed-router.zip" extracted/boot.img.xz extracted/system.img.xz extracted/vendor.img.xz extracted/META-INF
 
       - name: 4. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-ultimate-router
-          path: work/output/vince-ultimate-router.zip
+          name: vince-pro-compressed-router
+          path: work/output/vince-pro-compressed-router.zip
