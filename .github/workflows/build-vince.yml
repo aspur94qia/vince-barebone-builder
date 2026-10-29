@@ -62,38 +62,49 @@ jobs:
           SH_EOF
           sudo chmod 755 sys_mnt/system/etc/router_init.sh
           
-          echo ">>> [4/5] DIET EKSTREM TAHAP 2 (Membantai Raksasa Android) <<<"
-          
-          # Hapus partisi tambahan raksasa (UI ekstra & bloatware)
-          sudo rm -rf sys_mnt/system/system_ext sys_mnt/system_ext
-          sudo rm -rf sys_mnt/system/product sys_mnt/product
-          
-          # Hapus Aplikasi, Font, Media, Mesin Java
+          echo ">>> [4/5] JURUS SAPU JAGAT (NUKE FROM ORBIT) <<<"
+          # Hapus folder partisi raksasa
+          sudo rm -rf sys_mnt/system/system_ext sys_mnt/system_ext sys_mnt/system/product sys_mnt/product
           sudo rm -rf sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/framework
           sudo rm -rf sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/tts sys_mnt/system/usr/icu
-          
-          # Hapus Modul APEX raksasa (Hanya sisakan runtime dasar)
-          sudo rm -rf sys_mnt/system/apex/com.android.art* sys_mnt/system/apex/com.android.vndk*
-          sudo rm -rf sys_mnt/system/apex/com.android.media*
-          
-          # Hapus Library Berat (Grafis 3D Vulkan, OpenGL, Webview, Chrome)
-          sudo rm -f sys_mnt/system/lib/libart* sys_mnt/system/lib64/libart*
-          sudo rm -f sys_mnt/system/lib/libvulkan* sys_mnt/system/lib64/libvulkan*
-          sudo rm -f sys_mnt/system/lib/libwebview* sys_mnt/system/lib64/libwebview*
-          sudo rm -f sys_mnt/system/lib/libchrome* sys_mnt/system/lib64/libchrome*
-          sudo rm -rf sys_mnt/system/lib/hw/vulkan* sys_mnt/system/lib64/hw/vulkan*
-          
-          # Hapus Vendor (Driver Kamera, GPU, Overlay Layar - Sisakan Modem & WiFi)
           sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay
-          sudo rm -rf vnd_mnt/lib/egl vnd_mnt/lib64/egl vnd_mnt/lib/hw/vulkan* vnd_mnt/lib64/hw/vulkan*
-          sudo rm -rf vnd_mnt/lib/hw/camera* vnd_mnt/lib64/hw/camera*
           
-          # Hapus Firmware yang tidak dipakai router (Video encoder, Audio, Sensor NPU)
-          sudo rm -rf vnd_mnt/firmware/venus* vnd_mnt/firmware/adsp* vnd_mnt/firmware/cdsp* vnd_mnt/firmware/slpi*
+          # SAPU BERSIH SEMUA APK, ODEX, VDEX, OAT di seluruh partisi!
+          echo "Menghapus semua sisa APK dan Cache Dalvik..."
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.apk" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.odex" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.vdex" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.oat" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.ttf" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.png" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.webp" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.ogg" -delete
+          
+          # HAPUS APEX RAKSASA (WebView, Media, ART)
+          echo "Menghapus modul APEX..."
+          sudo rm -rf sys_mnt/system/apex/com.android.art*
+          sudo rm -rf sys_mnt/system/apex/com.android.vndk*
+          sudo rm -rf sys_mnt/system/apex/com.google.android.webview*
+          sudo rm -rf sys_mnt/system/apex/com.android.media*
+          sudo rm -rf sys_mnt/system/apex/com.android.bluetooth*
+          
+          # HAPUS LIBRARY BERAT (Compiler, Grafis, Media)
+          echo "Menghapus library siluman raksasa..."
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*LLVM*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*clang*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*skia*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*hwui*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*stagefright*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*vulkan*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*webview*.so" -delete
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*pdfium*.so" -delete
           
           # Cegah Bootloop
           sudo rm -f sys_mnt/system/bin/app_process* sys_mnt/system/bin/surfaceflinger sys_mnt/system/bin/bootanimation
           sudo rm -f sys_mnt/system/etc/init/zygote*.rc sys_mnt/system/etc/init/surfaceflinger.rc
+          
+          echo ">>> 20 FILE TERBESAR YANG TERSISA (Investigasi) <<<"
+          sudo find sys_mnt/ vnd_mnt/ -type f -exec du -h {} + | sort -rh | head -n 20
           
           echo ">>> [5/5] Zero-Fill untuk kompresi ZIP Maksimal..."
           sudo dd if=/dev/zero of=sys_mnt/zeroes bs=1M 2>/dev/null || true
