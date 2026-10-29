@@ -16,7 +16,7 @@ jobs:
         run: |
           set -x
           sudo apt-get update
-          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
+          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 curl
 
       - name: 2. Download Base ROM & Extract Components
         run: |
@@ -33,7 +33,7 @@ jobs:
           # Ekstrak system & vendor raw image menggunakan brotli & sdat2img
           brotli -d system.new.dat.br -o system.new.dat
           brotli -d vendor.new.dat.br -o vendor.new.dat
-          wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
+          curl -sL -o sdat2img.py https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
           python3 sdat2img.py system.transfer.list system.new.dat system.img
           python3 sdat2img.py vendor.transfer.list vendor.new.dat vendor.img
           
@@ -44,8 +44,13 @@ jobs:
           echo "=== A. MEMBUAT SYSTEM 100MB MINIMALIS + WEBUI + TTL SPOOFING ==="
           sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
           
-          # Download Busybox ARM64 dari server resmi (anti 404/link mati)
-          wget -q -O busybox-arm64 https://busybox.net/downloads/binaries/1.31.1-defconfig-multiarch-musl/busybox-aarch64
+          # Trik Dewa: Ambil Busybox ARM64 dari Image Docker Resmi (100% Bebas Error 404)
+          docker pull --platform linux/arm64 busybox:musl
+          docker create --name extract_bb busybox:musl
+          docker cp extract_bb:/bin/busybox ./busybox-arm64
+          docker rm extract_bb
+          
+          # Salin ke dalam sistem
           sudo cp busybox-arm64 sys_mnt/system/bin/busybox
           sudo chmod 755 sys_mnt/system/bin/busybox
           sudo ln -sf /system/bin/busybox sys_mnt/system/bin/sh
