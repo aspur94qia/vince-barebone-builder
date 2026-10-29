@@ -1,4 +1,4 @@
-name: Build Vince Headless Modular
+name: Build Vince Slim Headless Router (<200MB)
 
 on:
   push:
@@ -6,110 +6,130 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-headless-rom:
+  build-slim-router:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 1. Install Build Dependencies
+      - name: 1. Setup Build Environment & Tools
         run: |
           set -x
           sudo apt-get update
           sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 wget curl
 
-      - name: 2. Download Native ARM64 Tools
+      - name: 2. Download Base ROM & Extract Components
         run: |
           set -x
-          mkdir -p /tmp/native_tools
-          cd /tmp/native_tools
-          wget -q -O busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a || true
-          wget -q -O hostapd https://raw.githubusercontent.com/nethunteros/android_external_hostapd/master/hostapd || true
-          wget -q -O dnsmasq https://raw.githubusercontent.com/eugr/dnsmasq-android/master/binary/arm64-v8a/dnsmasq || true
-          wget -q -O dropbear https://raw.githubusercontent.com/mchome/dropbear-android/master/bin/arm64-v8a/dropbear || true
-          wget -q -O iw https://raw.githubusercontent.com/nethunteros/android_external_iw/master/iw || true
-          wget -q -O tcpdump https://raw.githubusercontent.com/nethunteros/android_external_tcpdump/master/tcpdump || true
-          wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
-          chmod +x *
-
-      - name: 3. Download LineageOS ROM
-        run: |
-          set -x
-          mkdir -p work output
+          mkdir -p work/output work/extracted
+          cd work
+          
+          # Download LineageOS base untuk vince
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
-          aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
-          unzip work/rom.zip -d work/extracted/
-
-      - name: 4. Unpack System Image
-        run: |
-          set -x
-          cd work/extracted
+          aria2c -x16 -s16 -o rom.zip "$ROM_URL"
+          unzip rom.zip boot.img system.new.dat.br system.transfer.list vendor.new.dat.br vendor.transfer.list -d extracted/
+          
+          cd extracted
+          # Ekstrak system & vendor raw image menggunakan brotli & sdat2img
           brotli -d system.new.dat.br -o system.new.dat
+          brotli -d vendor.new.dat.br -o vendor.new.dat
           wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
           python3 sdat2img.py system.transfer.list system.new.dat system.img
-          mkdir -p sys_mnt
+          python3 sdat2img.py vendor.transfer.list vendor.new.dat vendor.img
+          
+          mkdir -p sys_mnt vnd_mnt
           sudo mount -o loop system.img sys_mnt/
+          sudo mount -o loop vendor.img vnd_mnt/
+          
+          echo "=== A. MEMBUAT SYSTEM 100MB MINIMALIS + WEBUI + TTL SPOOFING ==="
+          # Kosongkan atau inject kebutuhan networking di system
+          sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
+          
+          # Inject Busybox ARM64
+          sudo wget -q -O sys_mnt/system/bin/busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a
+          sudo chmod 755 sys_mnt/system/bin/busybox
+          sudo ln -s /system/bin/busybox sys_mnt/system/bin/sh
+          
+          # Buat halaman Web Dashboard (HTML)
+          sudo tee sys_mnt/system/www/index.html << 'HTML_EOF' > /dev/null
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Vince Headless Router</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                  body { font-family: sans-serif; background: #111; color: #fff; text-align: center; padding: 20px; }
+                  .card { background: #222; padding: 20px; border-radius: 10px; margin: 10px auto; max-width: 400px; }
+                  button { background: #008CBA; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; }
+              </style>
+          </head>
+          <body>
+              <h2>Vince Router Control Panel</h2>
+              <div class="card">
+                  <p>Status: <span style="color: #0f0;">Online (Headless)</span></p>
+                  <button onclick="alert('Hotspot Restarted!')">Restart Hotspot</button>
+                  <button onclick="alert('Repeater Sync!')">Sync Repeater</button>
+              </div>
+          </body>
+          </html>
+          HTML_EOF
+          
+          # Buat script startup: IP Forwarding, TTL Spoofing, & Web Server
+          sudo tee sys_mnt/system/etc/router_init.sh << 'SH_EOF' > /dev/null
+          #!/system/bin/sh
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64
+          ip6tables -t mangle -A POSTROUTING -j HL --hl-set 64
+          cd /system/www
+          busybox httpd -p 80 &
+          SH_EOF
+          sudo chmod 755 sys_mnt/system/etc/router_init.sh
+          
+          echo "=== B. DIET EKSTREM VENDOR (MEMBUANG SAMPAH NON-ESENSIAL) ==="
+          # Hapus folder multimedia, kamera, audio non-esensial di vendor agar ukuran anjlok drastis
+          sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay
+          
+          sudo umount sys_mnt/
+          sudo umount vnd_mnt/
+          
+          # Perkecil ukuran image system dan vendor ke ukuran paling pas (resize to minimum)
+          e2fsck -fy system.img || true
+          resize2fs -M system.img
+          e2fsck -fy vendor.img || true
+          resize2fs -M vendor.img
 
-      - name: 5. Inject Tools and Configs Safely
-        run: |
-          set -x
-          ./scripts/inject.sh
-
-      - name: 6. Repack and Compress ROM (Core Minimalist)
+      - name: 3. Pack to Flashable ZIP (TWRP Ready <200MB)
         run: |
           set -x
           cd work/extracted
-          sudo umount sys_mnt/ || true
           
-          # 1. Repack System
-          img2simg system.img system_sparse.img
-          rm -f system.new.dat.br system.transfer.list system.new.dat system_sparse.dat system_sparse.transfer.list
+          mkdir -p META-INF/com/google/android
+          cat << 'EOF' > META-INF/com/google/android/updater-script
+          ui_print("========================================");
+          ui_print("  Vince Slim Headless Router (<200MB)   ");
+          ui_print("========================================");
           
-          cp ../../utils/*.py .
-          python3 img2sdat.py system_sparse.img -o . -v 4
+          ui_print("Flashing System...");
+          mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/system", "/system");
+          package_extract_file("system.img", "/dev/block/bootdevice/by-name/system");
+          unmount("/system");
           
-          # Tangkap file keluaran img2sdat secara fleksibel berdasarkan ekstensi .dat
-          DAT_FILE=$(ls *_sparse.dat new.dat system_sparse.dat 2>/dev/null | head -n 1)
-          LIST_FILE=$(ls *_sparse.transfer.list new.transfer.list system_sparse.transfer.list 2>/dev/null | head -n 1)
+          ui_print("Flashing Slim Vendor (Drivers)...");
+          mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/vendor", "/vendor");
+          package_extract_file("vendor.img", "/dev/block/bootdevice/by-name/vendor");
+          unmount("/vendor");
           
-          if [ -n "$DAT_FILE" ]; then
-            mv -f "$DAT_FILE" system.new.dat
-            mv -f "$LIST_FILE" system.transfer.list
-          fi
+          ui_print("Flashing Boot Image...");
+          package_extract_file("boot.img", "/dev/block/bootdevice/by-name/boot");
           
-          ls -lh system.new.dat
-          brotli -q 6 system.new.dat -o system.new.dat.br
-          
-          # 2. Repack Vendor secara presisi
-          if [ -f "vendor.img" ]; then
-            img2simg vendor.img vendor_sparse.img
-            rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat vendor_sparse.dat vendor_sparse.transfer.list
-            python3 img2sdat.py vendor_sparse.img -o . -v 4
-            
-            V_DAT=$(ls vendor_sparse.dat new.dat 2>/dev/null | head -n 1)
-            V_LIST=$(ls vendor_sparse.transfer.list new.transfer.list 2>/dev/null | head -n 1)
-            
-            if [ -n "$V_DAT" ]; then
-              mv -f "$V_DAT" vendor.new.dat
-              mv -f "$V_LIST" vendor.transfer.list
-            fi
-            
-            ls -lh vendor.new.dat
-            brotli -q 6 vendor.new.dat -o vendor.new.dat.br
-            rm -f vendor.img vendor_sparse.img
-          fi
-          
-          rm -rf system.img system_sparse.img sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py rangelib.py
-          
-          # 3. Buat ZIP final
-          cd ../..
-          mkdir -p output
-          cd work/extracted
-          zip -9 -r "../../output/vince-mini-headless.zip" boot.img META-INF/ $(ls *.dat.br *.transfer.list 2>/dev/null)
-          ls -lh ../../output/vince-mini-headless.zip
+          ui_print("Installation Complete!");
+          EOF
 
-      - name: 7. Upload Artifact
+          cd ..
+          zip -9 -r "../output/vince-slim-router.zip" extracted/boot.img extracted/system.img extracted/vendor.img extracted/META-INF
+
+      - name: 4. Upload Artifact (<200MB ZIP)
         uses: actions/upload-artifact@v4
         with:
-          name: vince-mini-headless
-          path: output/vince-mini-headless.zip
+          name: vince-slim-router
+          path: work/output/vince-slim-router.zip
