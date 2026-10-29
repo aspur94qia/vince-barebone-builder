@@ -67,15 +67,19 @@ jobs:
           
           cp ../../utils/*.py .
           python3 img2sdat.py system_sparse.img -o . -v 4
+          # img2sdat menghasilkan new.dat, kita rename jadi system.new.dat
+          mv -f new.dat system.new.dat
+          mv -f new.transfer.list system.transfer.list
           brotli -q 6 system.new.dat -o system.new.dat.br
           
           # 2. Repack Vendor secara presisi
           if [ -f "vendor.img" ]; then
             img2simg vendor.img vendor_sparse.img
-            # Hapus file dat.br lama TEPAT sebelum python img2sdat menghasilkan file baru
             rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat
             python3 img2sdat.py vendor_sparse.img -o . -v 4
-            # Pastikan file vendor.new.dat benar-benar ada sebelum dikompres brotli
+            # img2sdat menghasilkan new.dat, kita rename jadi vendor.new.dat
+            mv -f new.dat vendor.new.dat
+            mv -f new.transfer.list vendor.transfer.list
             ls -lh vendor.new.dat
             brotli -q 6 vendor.new.dat -o vendor.new.dat.br
             rm -f vendor.img vendor_sparse.img vendor.new.dat
