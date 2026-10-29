@@ -63,16 +63,13 @@ jobs:
           
           # 1. Repack System
           img2simg system.img system_sparse.img
-          rm -f system.new.dat.br system.transfer.list system.new.dat
+          rm -f system.new.dat.br system.transfer.list system.new.dat new.dat new.transfer.list
           
           cp ../../utils/*.py .
           python3 img2sdat.py system_sparse.img -o . -v 4
           
-          # img2sdat menghasilkan system_sparse.dat & system_sparse.transfer.list
-          if [ -f "system_sparse.dat" ]; then
-            mv -f system_sparse.dat system.new.dat
-            mv -f system_sparse.transfer.list system.transfer.list
-          elif [ -f "new.dat" ]; then
+          # img2sdat pasti menghasilkan new.dat, langsung rename ke system.new.dat
+          if [ -f "new.dat" ]; then
             mv -f new.dat system.new.dat
             mv -f new.transfer.list system.transfer.list
           fi
@@ -82,13 +79,10 @@ jobs:
           # 2. Repack Vendor secara presisi
           if [ -f "vendor.img" ]; then
             img2simg vendor.img vendor_sparse.img
-            rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat
+            rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat new.dat new.transfer.list
             python3 img2sdat.py vendor_sparse.img -o . -v 4
             
-            if [ -f "vendor_sparse.dat" ]; then
-              mv -f vendor_sparse.dat vendor.new.dat
-              mv -f vendor_sparse.transfer.list vendor.transfer.list
-            elif [ -f "new.dat" ]; then
+            if [ -f "new.dat" ]; then
               mv -f new.dat vendor.new.dat
               mv -f new.transfer.list vendor.transfer.list
             fi
