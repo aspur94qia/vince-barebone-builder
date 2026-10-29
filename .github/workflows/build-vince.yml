@@ -24,13 +24,11 @@ jobs:
           mkdir -p work/output work/extracted
           cd work
           
-          # Download LineageOS base untuk vince
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o rom.zip "$ROM_URL"
           unzip rom.zip boot.img system.new.dat.br system.transfer.list vendor.new.dat.br vendor.transfer.list -d extracted/
           
           cd extracted
-          # Ekstrak system & vendor raw image menggunakan brotli & sdat2img
           brotli -d system.new.dat.br -o system.new.dat
           brotli -d vendor.new.dat.br -o vendor.new.dat
           curl -sL -o sdat2img.py https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
@@ -44,18 +42,15 @@ jobs:
           echo "=== A. MEMBUAT SYSTEM 100MB MINIMALIS + WEBUI + TTL SPOOFING ==="
           sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
           
-          # Trik Dewa: Ambil Busybox ARM64 dari Image Docker Resmi (100% Bebas Error 404)
           docker pull --platform linux/arm64 busybox:musl
           docker create --name extract_bb busybox:musl
           docker cp extract_bb:/bin/busybox ./busybox-arm64
           docker rm extract_bb
           
-          # Salin ke dalam sistem
           sudo cp busybox-arm64 sys_mnt/system/bin/busybox
           sudo chmod 755 sys_mnt/system/bin/busybox
           sudo ln -sf /system/bin/busybox sys_mnt/system/bin/sh
           
-          # Buat halaman Web Dashboard (HTML)
           sudo tee sys_mnt/system/www/index.html << 'HTML_EOF' > /dev/null
           <!DOCTYPE html>
           <html>
@@ -79,7 +74,6 @@ jobs:
           </html>
           HTML_EOF
           
-          # Buat script startup: IP Forwarding, TTL Spoofing, & Web Server
           sudo tee sys_mnt/system/etc/router_init.sh << 'SH_EOF' > /dev/null
           #!/system/bin/sh
           echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -96,7 +90,6 @@ jobs:
           sudo umount sys_mnt/
           sudo umount vnd_mnt/
           
-          # Perkecil ukuran image system dan vendor ke ukuran paling pas
           e2fsck -fy system.img || true
           resize2fs -M system.img
           e2fsck -fy vendor.img || true
@@ -130,7 +123,7 @@ jobs:
           EOF
 
           cd ..
-          zip -9 -r "../output/vince-slim-router.zip" extracted/boot.img extracted/system.img extracted/vendor.img extracted/META-INF
+          zip -9 -r "output/vince-slim-router.zip" extracted/boot.img extracted/system.img extracted/vendor.img extracted/META-INF
 
       - name: 4. Upload Artifact (<200MB ZIP)
         uses: actions/upload-artifact@v4
