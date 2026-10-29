@@ -67,12 +67,16 @@ jobs:
           
           cp ../../utils/*.py .
           python3 img2sdat.py system_sparse.img -o . -v 4
-          # img2sdat otomatis menamai output sesuai nama file input (system_sparse.new.dat)
-          # Kita rename ke system.new.dat jika perlu, atau biarkan
-          if [ -f "system_sparse.new.dat" ]; then
-            mv -f system_sparse.new.dat system.new.dat
+          
+          # img2sdat menghasilkan system_sparse.dat & system_sparse.transfer.list
+          if [ -f "system_sparse.dat" ]; then
+            mv -f system_sparse.dat system.new.dat
             mv -f system_sparse.transfer.list system.transfer.list
+          elif [ -f "new.dat" ]; then
+            mv -f new.dat system.new.dat
+            mv -f new.transfer.list system.transfer.list
           fi
+          
           brotli -q 6 system.new.dat -o system.new.dat.br
           
           # 2. Repack Vendor secara presisi
@@ -80,10 +84,15 @@ jobs:
             img2simg vendor.img vendor_sparse.img
             rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat
             python3 img2sdat.py vendor_sparse.img -o . -v 4
-            if [ -f "vendor_sparse.new.dat" ]; then
-              mv -f vendor_sparse.new.dat vendor.new.dat
+            
+            if [ -f "vendor_sparse.dat" ]; then
+              mv -f vendor_sparse.dat vendor.new.dat
               mv -f vendor_sparse.transfer.list vendor.transfer.list
+            elif [ -f "new.dat" ]; then
+              mv -f new.dat vendor.new.dat
+              mv -f new.transfer.list vendor.transfer.list
             fi
+            
             ls -lh vendor.new.dat
             brotli -q 6 vendor.new.dat -o vendor.new.dat.br
             rm -f vendor.img vendor_sparse.img vendor.new.dat
