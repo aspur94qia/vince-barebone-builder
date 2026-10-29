@@ -42,13 +42,13 @@ jobs:
           sudo mount -o loop vendor.img vnd_mnt/
           
           echo "=== A. MEMBUAT SYSTEM 100MB MINIMALIS + WEBUI + TTL SPOOFING ==="
-          # Kosongkan atau inject kebutuhan networking di system
           sudo mkdir -p sys_mnt/system/bin sys_mnt/system/www sys_mnt/system/etc
           
-          # Inject Busybox ARM64
-          sudo wget -q -O sys_mnt/system/bin/busybox https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a
+          # Download Busybox secara lokal dulu (bebas dari Exit Code 8) lalu salin ke mount
+          wget -q -O busybox-arm64 https://github.com/muntashirakon/busybox-NDK/releases/download/v1.36.1/busybox-arm64-v8a
+          sudo cp busybox-arm64 sys_mnt/system/bin/busybox
           sudo chmod 755 sys_mnt/system/bin/busybox
-          sudo ln -s /system/bin/busybox sys_mnt/system/bin/sh
+          sudo ln -sf /system/bin/busybox sys_mnt/system/bin/sh
           
           # Buat halaman Web Dashboard (HTML)
           sudo tee sys_mnt/system/www/index.html << 'HTML_EOF' > /dev/null
@@ -86,13 +86,12 @@ jobs:
           sudo chmod 755 sys_mnt/system/etc/router_init.sh
           
           echo "=== B. DIET EKSTREM VENDOR (MEMBUANG SAMPAH NON-ESENSIAL) ==="
-          # Hapus folder multimedia, kamera, audio non-esensial di vendor agar ukuran anjlok drastis
           sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay
           
           sudo umount sys_mnt/
           sudo umount vnd_mnt/
           
-          # Perkecil ukuran image system dan vendor ke ukuran paling pas (resize to minimum)
+          # Perkecil ukuran image system dan vendor ke ukuran paling pas
           e2fsck -fy system.img || true
           resize2fs -M system.img
           e2fsck -fy vendor.img || true
