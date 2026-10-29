@@ -31,7 +31,6 @@ jobs:
           wget -q -O tcpdump https://raw.githubusercontent.com/nethunteros/android_external_tcpdump/master/tcpdump || true
           wget -q -O iftop https://raw.githubusercontent.com/nethunteros/android_external_iftop/master/iftop || true
           chmod +x *
-          ls -lh /tmp/native_tools
 
       - name: 3. Download LineageOS ROM
         run: |
@@ -40,19 +39,16 @@ jobs:
           ROM_URL="https://github.com/imren0x/LineageOS_vince/releases/download/20260507/lineage-23.2-20260506-UNOFFICIAL-vince.zip"
           aria2c -x16 -s16 -o work/rom.zip "$ROM_URL"
           unzip work/rom.zip -d work/extracted/
-          ls -lh work/extracted/
 
       - name: 4. Unpack System Image
         run: |
           set -x
           cd work/extracted
-          ls -lh
           brotli -d system.new.dat.br -o system.new.dat
           wget -q https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
           python3 sdat2img.py system.transfer.list system.new.dat system.img
           mkdir -p sys_mnt
           sudo mount -o loop system.img sys_mnt/
-          df -h
 
       - name: 5. Inject Tools and Configs Safely
         run: |
@@ -65,27 +61,26 @@ jobs:
           cd work/extracted
           sudo umount sys_mnt/ || true
           
-          # Cek ukuran dan buat sparse image system
+          # 1. Repack System
           img2simg system.img system_sparse.img
           rm -f system.new.dat.br system.transfer.list system.new.dat
           
-          # Salin modul img2sdat lokal
           cp ../../utils/*.py .
           python3 img2sdat.py system_sparse.img -o . -v 4
-          
           brotli -q 6 system.new.dat -o system.new.dat.br
           
-          # Repack vendor jika ada vendor.img hasil trim
+          # 2. Repack Vendor (Hapus file dat.br lama dulu sebelum brotli)
           if [ -f "vendor.img" ]; then
             img2simg vendor.img vendor_sparse.img
+            rm -f vendor.new.dat.br vendor.transfer.list vendor.new.dat
             python3 img2sdat.py vendor_sparse.img -o . -v 4
             brotli -q 6 vendor.new.dat -o vendor.new.dat.br
             rm -f vendor.img vendor_sparse.img vendor.new.dat
           fi
           
-          rm -rf system.img system_sparse.img system.new.dat sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py rangelib.py
+          rm -rf system.img system_sparse.img sys_mnt sdat2img.py common.py blockimgdiff.py sparse_img.py rangelib.py
           
-          # Buat ZIP final
+          # 3. Buat ZIP final
           cd ../..
           mkdir -p output
           cd work/extracted
