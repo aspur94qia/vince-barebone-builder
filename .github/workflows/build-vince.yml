@@ -1,4 +1,4 @@
-name: Build Vince Slim Headless Router (<200MB)
+name: Build Vince Ultimate Clean Router (<200MB)
 
 on:
   push:
@@ -15,9 +15,9 @@ jobs:
       - name: 1. Setup Build Environment & Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 curl
+          sudo apt-get install -y brotli android-sdk-libsparse-utils e2fsprogs p7zip-full python3 zip aria2 curl xz-utils
 
-      - name: 2. Download Base ROM & Extract
+      - name: 2. Download Base ROM & Extreme Purge
         run: |
           mkdir -p work/output work/extracted
           cd work
@@ -62,51 +62,20 @@ jobs:
           SH_EOF
           sudo chmod 755 sys_mnt/system/etc/router_init.sh
           
-          echo ">>> [4/5] JURUS SAPU JAGAT (NUKE FROM ORBIT) <<<"
-          # Hapus folder partisi raksasa
-          sudo rm -rf sys_mnt/system/system_ext sys_mnt/system_ext sys_mnt/system/product sys_mnt/product
-          sudo rm -rf sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/framework
-          sudo rm -rf sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/tts sys_mnt/system/usr/icu
-          sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay
+          echo ">>> [4/5] PEMBANTAIAN MASSAL (MENGHAPUS SEMUA YANG TIDAK PERLU) <<<"
+          # 1. Hapus partisi bloatware total
+          sudo rm -rf sys_mnt/system/system_ext sys_mnt/system/product sys_mnt/system/app sys_mnt/system/priv-app sys_mnt/system/framework sys_mnt/system/media sys_mnt/system/fonts sys_mnt/system/tts sys_mnt/system/usr/icu sys_mnt/system/etc/permissions
           
-          # SAPU BERSIH SEMUA APK, ODEX, VDEX, OAT di seluruh partisi!
-          echo "Menghapus semua sisa APK dan Cache Dalvik..."
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.apk" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.odex" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.vdex" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.oat" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.ttf" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.png" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.webp" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.ogg" -delete
+          # 2. Hapus seluruh file APK, cache, font, dan gambar yang tersisa di manapun
+          sudo find sys_mnt/ vnd_mnt/ -type f \( -name "*.apk" -o -name "*.odex" -o -name "*.vdex" -o -name "*.oat" -o -name "*.ttf" -o -name "*.png" -o -name "*.ogg" -o -name "*.xml" \) -delete
           
-          # HAPUS APEX RAKSASA (WebView, Media, ART)
-          echo "Menghapus modul APEX..."
-          sudo rm -rf sys_mnt/system/apex/com.android.art*
-          sudo rm -rf sys_mnt/system/apex/com.android.vndk*
-          sudo rm -rf sys_mnt/system/apex/com.google.android.webview*
-          sudo rm -rf sys_mnt/system/apex/com.android.media*
-          sudo rm -rf sys_mnt/system/apex/com.android.bluetooth*
+          # 3. Hapus folder vendor non-esensial (Kamera, Audio, Display, Sensors, Bluetooth, NPU)
+          sudo rm -rf vnd_mnt/app vnd_mnt/priv-app vnd_mnt/media vnd_mnt/soundfx vnd_mnt/camera vnd_mnt/overlay vnd_mnt/display vnd_mnt/sensors vnd_mnt/etc/vintf
           
-          # HAPUS LIBRARY BERAT (Compiler, Grafis, Media)
-          echo "Menghapus library siluman raksasa..."
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*LLVM*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*clang*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*skia*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*hwui*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*stagefright*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*vulkan*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*webview*.so" -delete
-          sudo find sys_mnt/ vnd_mnt/ -type f -name "*pdfium*.so" -delete
+          # 4. Hapus library (.so) raksasa yang tidak ada hubungannya dengan jaringan/kernel
+          sudo find sys_mnt/ vnd_mnt/ -type f -name "*.so" ! -name "*netd*" ! -name "*vold*" ! -name "*ril*" ! -name "*wifi*" ! -name "*wlan*" ! -name "*binder*" ! -name "*cutils*" ! -name "*log*" ! -name "*base*" -delete
           
-          # Cegah Bootloop
-          sudo rm -f sys_mnt/system/bin/app_process* sys_mnt/system/bin/surfaceflinger sys_mnt/system/bin/bootanimation
-          sudo rm -f sys_mnt/system/etc/init/zygote*.rc sys_mnt/system/etc/init/surfaceflinger.rc
-          
-          echo ">>> 20 FILE TERBESAR YANG TERSISA (Investigasi) <<<"
-          sudo find sys_mnt/ vnd_mnt/ -type f -exec du -h {} + | sort -rh | head -n 20
-          
-          echo ">>> [5/5] Zero-Fill untuk kompresi ZIP Maksimal..."
+          # 5. Zero-Fill (Isi ruang kosong dengan 0 untuk kompresi maksimal)
           sudo dd if=/dev/zero of=sys_mnt/zeroes bs=1M 2>/dev/null || true
           sudo rm -f sys_mnt/zeroes
           sudo dd if=/dev/zero of=vnd_mnt/zeroes bs=1M 2>/dev/null || true
@@ -115,33 +84,54 @@ jobs:
           sudo umount sys_mnt/
           sudo umount vnd_mnt/
           
+          echo ">>> Meresize partisi ke ukuran paling minimal..."
           e2fsck -fy system.img || true
           resize2fs -M system.img
           e2fsck -fy vendor.img || true
           resize2fs -M vendor.img
+          
+          echo ">>> [5/5] Kompresi Ekstrem XZ ke Format Image.xz..."
+          xz -9 -z system.img
+          xz -9 -z vendor.img
+          xz -9 -z boot.img
 
-      - name: 3. Pack to Flashable ZIP (<200MB)
+      - name: 3. Pack to Safe Flashable ZIP (<200MB)
         run: |
           cd work/extracted
+          
           mkdir -p META-INF/com/google/android
           cat << 'EOF' > META-INF/com/google/android/updater-script
           ui_print("========================================");
-          ui_print("  Vince Slim Headless Router (<200MB)   ");
+          ui_print("  Vince Ultimate Clean Router (<200MB)  ");
           ui_print("========================================");
+          
+          ui_print("Flashing System...");
           mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/system", "/system");
-          package_extract_file("system.img", "/dev/block/bootdevice/by-name/system");
+          package_extract_file("system.img.xz", "/tmp/system.img.xz");
+          run_program("/sbin/unxz", "/tmp/system.img.xz");
+          write_raw_image("/tmp/system.img", "/dev/block/bootdevice/by-name/system");
           unmount("/system");
+          
+          ui_print("Flashing Vendor...");
           mount("ext4", "EMMC", "/dev/block/bootdevice/by-name/vendor", "/vendor");
-          package_extract_file("vendor.img", "/dev/block/bootdevice/by-name/vendor");
+          package_extract_file("vendor.img.xz", "/tmp/vendor.img.xz");
+          run_program("/sbin/unxz", "/tmp/vendor.img.xz");
+          write_raw_image("/tmp/vendor.img", "/dev/block/bootdevice/by-name/vendor");
           unmount("/vendor");
-          package_extract_file("boot.img", "/dev/block/bootdevice/by-name/boot");
-          ui_print("Selesai!");
+          
+          ui_print("Flashing Boot Image...");
+          package_extract_file("boot.img.xz", "/tmp/boot.img.xz");
+          run_program("/sbin/unxz", "/tmp/boot.img.xz");
+          write_raw_image("/tmp/boot.img", "/dev/block/bootdevice/by-name/boot");
+          
+          ui_print("Instalasi Router Selesai!");
           EOF
+
           cd ..
-          zip -9 -r "output/vince-slim-router.zip" extracted/boot.img extracted/system.img extracted/vendor.img extracted/META-INF
+          zip -9 -r "output/vince-ultimate-router.zip" extracted/boot.img.xz extracted/system.img.xz extracted/vendor.img.xz extracted/META-INF
 
       - name: 4. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vince-slim-router
-          path: work/output/vince-slim-router.zip
+          name: vince-ultimate-router
+          path: work/output/vince-ultimate-router.zip
